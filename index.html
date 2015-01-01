@@ -1,0 +1,263 @@
+<html>
+	<head>
+		<meta name="viewport" content="width=device-width, maximum-scale=1.0, user-scalable=yes">
+		<style>
+		html, body
+		{
+			margin: 10px;
+			background-color: #789;
+		}
+		.customfont
+		{
+			font-size: 20pt;
+			font-family: sans-serif;
+		}
+		.strike > span
+		{
+			text-decoration: line-through;
+		}
+		.noselect
+		{
+			-webkit-touch-callout: none;
+			-webkit-user-select: none;
+			-khtml-user-select: none;
+			-moz-user-select: none;
+			-ms-user-select: none;
+			user-select: none;
+		}
+		.hidden
+		{
+			display: none;
+		}
+		ul
+		{
+			margin: 0;
+			padding: 0;
+			list-style-type: none;
+			white-space: nowrap;
+		}
+		li
+		{
+			padding: 5pt;
+		}
+		li > *
+		{
+			display: inline-block;
+		}
+		li > *:first-child
+		{
+			width: 70%;
+			margin-right: 5%;
+		}
+		li > *:last-child
+		{
+			width: 25%;
+		}
+		.item
+		{
+		}
+		</style>
+		<script type="text/javascript" src="jquery-1.9.1.min.js"></script>
+		<script type="text/javascript">
+		$().ready(
+			function()
+			{
+				var lastSynced = new Date();
+				var ul = $( "ul" );
+				var emptyrow = $( "<li><span class=\"item\"></span><input disabled=\"true\" class=\"customfont remove\" type=\"button\" value=\"remove\" /></li>" );
+				
+				function getRow( item )
+				{
+					return item.parents( "li" );
+				}
+				
+				function findItem( str )
+				{
+					var result = null;
+					ul.find( ".item" ).each(
+						function( i, t )
+						{
+							if ( $(t).text() == str )
+							{
+								result = t;
+								return false;
+							}
+						}
+					);
+					return $(result);
+				}
+				
+				function updatePageJson( data )
+				{
+					return updatePage( JSON.parse( data ) );
+				}
+				
+				function updatePage( data )
+				{
+					for ( var name in data[ "items" ] )
+					{
+						addRow( name );
+						var i = findItem( name );
+						var item = data[ "items" ][ name ];
+						i.data( "modified", item[ "modified" ] );
+						var row = getRow( i );
+						row.addClass( item[ "state" ] );
+						row.find( ".remove" ).attr( "disabled", !row.hasClass( "strike" ) );
+					}
+				}
+				
+				function getData()
+				{
+					var data = {
+						"items": {}
+					};
+					ul.find( ".item" ).each(
+						function( i, t )
+						{
+							var str = $(t).text();
+							if ( !str.length )
+							{
+								return;
+							}
+							var row = getRow( $(t) );
+							data[ "items" ][ str ] = {
+								"modified": $(t).data( "modified" ) || 0,
+								"state": row.hasClass( "hidden" ) ? "hidden" : ( row.hasClass( "strike" ) ? "strike" : "active" )
+							};
+						}
+					);
+					return data;
+				}
+				
+				function showError( str )
+				{
+					console.log( str );
+				}
+				
+				function sync( data )
+				{
+					data = data || getData();
+					
+					$.ajax(
+						"sync.php",
+						{
+							"data": data,
+							"success": function( data )
+							{
+								updatePageJson( data );
+								lastSynced = new Date();
+							},
+							"error": showError
+						}
+					)
+				}
+				
+				function addRow( str )
+				{
+					if ( !str.length )
+					{
+						return;
+					}
+					var item = findItem( str );
+					var row = getRow( item );
+					if ( !item.length )
+					{
+						row = emptyrow.clone();
+						row.find( ".item" ).text( str );
+						ul.append( row );
+					}
+					else if ( row.hasClass( "hidden" ) )
+					{
+						row.removeClass( "hidden" );
+						row.removeClass( "strike" );
+					}
+				}
+				
+				function removeItem( str )
+				{
+					var row = getRow( findItem( str ) );
+					if ( !row.length || row.hasClass( "hidden" ) )
+					{
+						return;
+					}
+					row.addClass( "hidden" );
+				}
+				
+				var input = $("input[name=item]");
+				
+				$("#additem").on
+				(
+					"click",
+					function( e )
+					{
+						addRow( input.val().trim() );
+						sync();
+						input.val( "" );
+						e.preventDefault();
+					}
+				);
+				
+				input.on
+				(
+					"keyup",
+					function( e )
+					{
+						if ( e.keyCode == 13 )
+						{
+							addRow( input.val().trim() );
+							sync();
+							input.val( "" );
+						}
+					}
+				);
+				
+				function syncIfNeeded()
+				{
+					var now = new Date();
+					if ( now.getTime() - lastSynced.getTime() > 5000 )
+					{
+						sync();
+						console.log( lastSynced );
+					}
+				}
+				
+				$(this).on
+				(
+					"click",
+					".item",
+					function( e )
+					{
+						var row = getRow( $(this) );
+						row.toggleClass( "strike" );
+						row.find( ".remove" ).attr( "disabled", !row.hasClass( "strike" ) );
+						sync();
+					}
+				).on
+				(
+					"click",
+					".remove",
+					function( e )
+					{
+						var str = getRow( $(this) ).find( ".item" ).text();
+						removeItem( str );
+						sync();
+					}
+				).on
+				(
+					"touchstart", syncIfNeeded
+				).on
+				(
+					"mousedown", syncIfNeeded
+				)
+				
+				sync();
+			}
+		);
+		</script>
+	</head>
+	<body>
+		<ul class="customfont">
+			<li><input name="item" type="text" /><input class="customfont" id="additem" type="submit" value="toevoegen" /></li>
+		</ul>
+	</body>
+</html>

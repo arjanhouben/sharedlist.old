@@ -4,13 +4,22 @@
 		<style>
 		html, body
 		{
-			margin: 10px;
 			background-color: #789;
+			overflow: hidden;
+			height: 100%;
+			width: 100%;
+			display: table;
 		}
 		.customfont
 		{
 			font-size: 20pt;
 			font-family: sans-serif;
+		}
+		input[type=text]
+		{
+			background-color: transparent;
+			border-color: black;
+			border-width: 0 0 1px 0;
 		}
 		.strike > span
 		{
@@ -31,10 +40,20 @@
 		}
 		ul
 		{
+			display: table-row;
 			margin: 0;
 			padding: 0;
 			list-style-type: none;
 			white-space: nowrap;
+		}
+		#scrollbox
+		{
+			height: 100%;
+			overflow: auto;
+		}
+		#items
+		{
+			height: 100%;
 		}
 		li
 		{
@@ -63,8 +82,8 @@
 			function()
 			{
 				var lastSynced = new Date();
-				var ul = $( "ul" );
-				var emptyrow = $( "<li><span class=\"item\"></span><input disabled=\"true\" class=\"customfont remove\" type=\"button\" value=\"remove\" /></li>" );
+				var container = $( "#scrollbox" );
+				var emptyrow = $( "<li><span onclick=\"void(0)\" class=\"item noselect\"></span><input disabled=\"true\" class=\"remove\" type=\"button\" value=\"weghalen\" /></li>" );
 				
 				function getRow( item )
 				{
@@ -74,7 +93,7 @@
 				function findItem( str )
 				{
 					var result = null;
-					ul.find( ".item" ).each(
+					container.find( ".item" ).each(
 						function( i, t )
 						{
 							if ( $(t).text() == str )
@@ -111,7 +130,7 @@
 					var data = {
 						"items": {}
 					};
-					ul.find( ".item" ).each(
+					container.find( ".item" ).each(
 						function( i, t )
 						{
 							var str = $(t).text();
@@ -164,7 +183,7 @@
 					{
 						row = emptyrow.clone();
 						row.find( ".item" ).text( str );
-						ul.append( row );
+						container.append( row );
 					}
 					else if ( row.hasClass( "hidden" ) )
 					{
@@ -197,27 +216,12 @@
 					}
 				);
 				
-				input.on
-				(
-					"keyup",
-					function( e )
-					{
-						if ( e.keyCode == 13 )
-						{
-							addRow( input.val().trim() );
-							sync();
-							input.val( "" );
-						}
-					}
-				);
-				
 				function syncIfNeeded()
 				{
 					var now = new Date();
 					if ( now.getTime() - lastSynced.getTime() > 5000 )
 					{
 						sync();
-						console.log( lastSynced );
 					}
 				}
 				
@@ -248,16 +252,103 @@
 				).on
 				(
 					"mousedown", syncIfNeeded
+				).on
+				(
+					"keyup",
+					function( e )
+					{
+						if ( e.keyCode == 13 )
+						{
+							addRow( input.val().trim() );
+							sync();
+							input.val( "" );
+						}
+					}
+				);
+				
+				function findMatching( str )
+				{
+					var result = [];
+					for ( var i in getData().items )
+					{
+						if ( i.length > str.length && i.lastIndexOf( str, str.length ) === 0 )
+						{
+							result.push( i );
+						}
+					}
+					return result;
+				}
+				
+				function byLength( a, b )
+				{
+					return a.length > b.length;
+				}
+				
+				function sameSize( len )
+				{
+					return function( a ) { return a.length === len; };
+				}
+				
+				function suggest( str )
+				{
+					var i = input[ 0 ];
+					var start = i.value.length;
+					i.value = str;
+					i.setSelectionRange( start, str.length );
+					i.focus();
+				}
+				
+				var nosuggest = false;
+				
+				input.on(
+					"keydown",
+					function( e )
+					{
+						switch ( e.keyCode )
+						{
+							case 8: // backspace
+							case 46: // delete
+								nosuggest = true;
+								break;
+							default:
+								nosuggest = false;
+						}
+					}
 				)
 				
+				input.on
+				(
+					"input",
+					function( e )
+					{
+						this.value = this.value.toLowerCase();
+						if ( nosuggest ) return;
+						var str = this.value;
+						if ( !str.length ) return;
+						var matches = findMatching( str ).sort( byLength );
+						if ( !matches.length ) return;
+						matches = matches.filter( sameSize( matches[ 0 ].length ) );
+						if ( matches.length === 1 )
+						{
+							suggest( matches[ 0 ] );
+						}
+					}
+				);
+				
 				sync();
+				
+				input.focus();
 			}
 		);
 		</script>
 	</head>
 	<body>
 		<ul class="customfont">
-			<li><input name="item" type="text" /><input class="customfont" id="additem" type="submit" value="toevoegen" /></li>
+			<li><input name="item" class="customfont" type="text" /><input id="additem" type="submit" value="toevoegen" /></li>
+		</ul>
+		<ul class="customfont" id="items">
+			<div id="scrollbox">
+			</div>
 		</ul>
 	</body>
 </html>

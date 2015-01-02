@@ -9,10 +9,12 @@
 			height: 100%;
 			width: 100%;
 			display: table;
+			margin: 0;
+			border-spacing: 7px;
 		}
 		.customfont
 		{
-			font-size: 20pt;
+			font-size: 18pt;
 			font-family: sans-serif;
 		}
 		input[type=text]
@@ -57,7 +59,7 @@
 		}
 		li
 		{
-			padding: 5pt;
+			padding: 3pt;
 		}
 		li > *
 		{
@@ -213,6 +215,7 @@
 						sync();
 						input.val( "" );
 						e.preventDefault();
+						input[ 0 ].focus();
 					}
 				);
 				
@@ -344,7 +347,7 @@
 	</head>
 	<body>
 		<ul class="customfont">
-			<li><input name="item" class="customfont" type="text" /><input id="additem" type="submit" value="toevoegen" /></li>
+			<li><input name="item" class="customfont" type="text" /><input id="additem" type="button" value="toevoegen" /></li>
 		</ul>
 		<ul class="customfont" id="items">
 			<div id="scrollbox">

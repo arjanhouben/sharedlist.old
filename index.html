@@ -120,6 +120,11 @@
 					return updatePage( JSON.parse( data ) );
 				}
 				
+				function sortList()
+				{
+					container.find( "li:last" ).after( container.find( "li.strike" ) );
+				}
+				
 				function updatePage( data )
 				{
 					if ( data[ "id" ] != unique )
@@ -137,6 +142,8 @@
 						row.addClass( item[ "state" ] );
 						row.find( ".remove" ).attr( "disabled", !row.hasClass( "strike" ) );
 					}
+					
+					sortList()
 					
 					$(".unsaved").removeClass( "unsaved" );
 				}
@@ -207,6 +214,7 @@
 						row.removeClass( "hidden" );
 						row.removeClass( "strike" );
 					}
+					container.find( "li:first" ).before( row );
 				}
 				
 				function removeItem( str )

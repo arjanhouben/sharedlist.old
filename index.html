@@ -79,12 +79,17 @@
 		.item
 		{
 		}
+		.unsaved
+		{
+			font-style: italic;
+		}
 		</style>
 		<script type="text/javascript" src="jquery-1.9.1.min.js"></script>
 		<script type="text/javascript">
 		$().ready(
 			function()
 			{
+				var unique = 0;
 				var lastSynced = new Date();
 				var container = $( "#scrollbox" );
 				var emptyrow = $( "<li><span onclick=\"void(0)\" class=\"item noselect\"></span><input disabled=\"true\" class=\"remove\" type=\"button\" value=\"weghalen\" /></li>" );
@@ -117,6 +122,11 @@
 				
 				function updatePage( data )
 				{
+					if ( data[ "id" ] != unique )
+					{
+						return;
+					}
+					
 					for ( var name in data[ "items" ] )
 					{
 						addRow( name );
@@ -127,6 +137,8 @@
 						row.addClass( item[ "state" ] );
 						row.find( ".remove" ).attr( "disabled", !row.hasClass( "strike" ) );
 					}
+					
+					$(".unsaved").removeClass( "unsaved" );
 				}
 				
 				function getData()
@@ -157,9 +169,10 @@
 					console.log( str );
 				}
 				
-				function sync( data )
+				function sync()
 				{
-					data = data || getData();
+					var data = getData();
+					data[ "id" ] = ++unique;
 					
 					$.ajax(
 						"sync.php",
@@ -237,7 +250,7 @@
 					function( e )
 					{
 						var row = getRow( $(this) );
-						row.toggleClass( "strike" );
+						row.toggleClass( "strike" ).addClass( "unsaved" );
 						row.find( ".remove" ).attr( "disabled", !row.hasClass( "strike" ) );
 						sync();
 					}

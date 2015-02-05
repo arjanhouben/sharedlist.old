@@ -120,9 +120,25 @@
 					return updatePage( JSON.parse( data ) );
 				}
 				
+				function sortItems( a, b )
+				{
+					var at = $(a).find( "span" ).text();
+					var bt = $(b).find( "span" ).text();
+					if ( at < bt ) return -1;
+					if ( at > bt ) return 1;
+					return 0;
+				}
+				
 				function sortList()
 				{
-					container.find( "li:last" ).after( container.find( "li.strike" ) );
+					var items = container.find( "li" );
+					var active = items.not( ".hidden" );
+					var strike = active.filter( ".strike" );
+					var normal = active.not( ".strike" );
+					normal.sort( sortItems );
+					strike.sort( sortItems );
+					container.append( normal );
+					container.append( strike );
 				}
 				
 				function updatePage( data )
@@ -139,6 +155,7 @@
 						var item = data[ "items" ][ name ];
 						i.data( "modified", item[ "modified" ] );
 						var row = getRow( i );
+						row.removeClass( "strike" );
 						row.addClass( item[ "state" ] );
 						row.find( ".remove" ).attr( "disabled", !row.hasClass( "strike" ) );
 					}
@@ -178,21 +195,31 @@
 				
 				function sync()
 				{
+					sortList();
+					
 					var data = getData();
 					data[ "id" ] = ++unique;
 					
-					$.ajax(
-						"sync.php",
-						{
-							"data": data,
-							"success": function( data )
+					if ( this.last )
+					{
+						this.last.abort();
+					}
+					
+					if ( navigator.onLine )
+					{
+						this.last = $.ajax(
+							"sync.php",
 							{
-								updatePageJson( data );
-								lastSynced = new Date();
-							},
-							"error": showError
-						}
-					)
+								"data": data,
+								"success": function( data )
+								{
+									updatePageJson( data );
+									lastSynced = new Date();
+								},
+								"error": showError
+							}
+						)
+					}
 				}
 				
 				function addRow( str )
@@ -213,6 +240,7 @@
 					{
 						row.removeClass( "hidden" );
 						row.removeClass( "strike" );
+						row.find( ".remove" ).attr( "disabled", true );
 					}
 					container.find( "li:first" ).before( row );
 				}
@@ -238,7 +266,6 @@
 						sync();
 						input.val( "" );
 						e.preventDefault();
-						input[ 0 ].focus();
 					}
 				);
 				
@@ -251,17 +278,21 @@
 					}
 				}
 				
+				function toggleRow( e )
+				{
+					var row = getRow( $(e.target) );
+					row.toggleClass( "strike" ).addClass( "unsaved" );
+					var isStrike = row.hasClass( "strike" );
+					row.find( ".remove" ).attr( "disabled", !isStrike );
+					sync();
+					e.preventDefault();
+				}
+				
 				$(this).on
 				(
 					"click",
 					".item",
-					function( e )
-					{
-						var row = getRow( $(this) );
-						row.toggleClass( "strike" ).addClass( "unsaved" );
-						row.find( ".remove" ).attr( "disabled", !row.hasClass( "strike" ) );
-						sync();
-					}
+					toggleRow
 				).on
 				(
 					"click",
@@ -274,10 +305,24 @@
 					}
 				).on
 				(
-					"touchstart", syncIfNeeded
+					"touchstart",
+					".item",
+					toggleRow
 				).on
 				(
-					"mousedown", syncIfNeeded
+					"touchstart",
+					syncIfNeeded
+				).on
+				(
+					"mousedown",
+					".item",
+					toggleRow
+				).on(
+					"keydown",
+					syncIfNeeded
+				).on(
+					"mousedown",
+					syncIfNeeded
 				).on
 				(
 					"keyup",
@@ -362,8 +407,6 @@
 				);
 				
 				sync();
-				
-				input.focus();
 			}
 		);
 		</script>

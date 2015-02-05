@@ -92,7 +92,7 @@
 				var unique = 0;
 				var lastSynced = new Date();
 				var container = $( "#scrollbox" );
-				var emptyrow = $( "<li><span onclick=\"void(0)\" class=\"item noselect\"></span><input disabled=\"true\" class=\"remove\" type=\"button\" value=\"weghalen\" /></li>" );
+				var emptyrow = $( "<li><span class=\"item noselect\"></span><input disabled=\"true\" class=\"remove\" type=\"button\" value=\"weghalen\" /></li>" );
 				
 				function getRow( item )
 				{
@@ -266,6 +266,7 @@
 						sync();
 						input.val( "" );
 						e.preventDefault();
+						input.focus();
 					}
 				);
 				
@@ -278,8 +279,11 @@
 					}
 				}
 				
+				var preventToggle = false;
+				
 				function toggleRow( e )
 				{
+					if ( preventToggle ) return;
 					var row = getRow( $(e.target) );
 					row.toggleClass( "strike" ).addClass( "unsaved" );
 					var isStrike = row.hasClass( "strike" );
@@ -288,12 +292,10 @@
 					e.preventDefault();
 				}
 				
-				$(this).on
-				(
-					"click",
-					".item",
-					toggleRow
-				).on
+				var refocus = false;
+				
+				$(this)
+				.on
 				(
 					"click",
 					".remove",
@@ -305,16 +307,37 @@
 					}
 				).on
 				(
-					"touchstart",
+					"touchend",
 					".item",
-					toggleRow
+					function( e )
+					{
+						if ( refocus )
+						{
+							input.focus();
+						}
+						toggleRow( e );
+					}
+					
+				).on
+				(
+					"touchmove",
+					function()
+					{
+						preventToggle = true;
+					}
 				).on
 				(
 					"touchstart",
-					syncIfNeeded
+					function()
+					{
+						refocus = document.activeElement == input[ 0 ];
+						input.blur();
+						preventToggle = false;
+						syncIfNeeded();
+					}
 				).on
 				(
-					"mousedown",
+					"mouseup",
 					".item",
 					toggleRow
 				).on(
@@ -402,6 +425,17 @@
 						if ( matches.length === 1 )
 						{
 							suggest( matches[ 0 ] );
+						}
+					}
+				).on
+				(
+					"touchstart",
+					function( e )
+					{
+						if ( document.activeElement == this )
+						{
+							this.blur();
+							e.preventDefault();
 						}
 					}
 				);

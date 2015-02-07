@@ -249,7 +249,7 @@
 					
 					if ( navigator.onLine )
 					{
-						this.last = $.ajax(
+						this.last = $.post(
 							"sync.php",
 							{
 								"data": data,

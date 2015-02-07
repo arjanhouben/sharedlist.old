@@ -148,6 +148,8 @@
 						return;
 					}
 					
+					var items = container.find( "li" ).remove();
+					
 					for ( var name in data[ "items" ] )
 					{
 						addRow( name );
@@ -193,12 +195,52 @@
 					console.log( str );
 				}
 				
+				function itemDifferent( a, b )
+				{
+					if ( a[ "modified" ] === b[ "modified" ] )
+					{
+						if ( a[ "state" ] === b[ "state" ] )
+						{
+							return null;
+						}
+					}
+					return b;
+				}
+			
+				function diff( a, b )
+				{
+					var result = {};
+					for ( var k in b )
+					{
+						var d = itemDifferent( a[ k ], b[ k ] )
+						if ( d )
+						{
+							result[ k ] = d;
+						}
+					}
+					return result;
+				}
+				
 				function sync()
 				{
 					sortList();
 					
 					var data = getData();
+					if ( !sync.lastData )
+					{
+						sync.lastData = data;
+					}
 					data[ "id" ] = ++unique;
+					
+/*					// diff todo
+					var d = diff( sync.lastData[ "items" ], data[ "items" ] );
+					console.log( d );
+					for ( var key in d )
+					{
+						console.log( key, d[ key ] );
+					}
+					sync.lastData = data;
+*/
 					
 					if ( this.last )
 					{
@@ -239,6 +281,11 @@
 					else if ( row.hasClass( "hidden" ) )
 					{
 						row.removeClass( "hidden" );
+						row.removeClass( "strike" );
+						row.find( ".remove" ).attr( "disabled", true );
+					}
+					else if ( row.hasClass( "strike" ) )
+					{
 						row.removeClass( "strike" );
 						row.find( ".remove" ).attr( "disabled", true );
 					}

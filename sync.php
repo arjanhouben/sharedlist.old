@@ -7,7 +7,7 @@ if ( !file_exists( "items" ) )
 	mkdir( "items" );
 }
 
-$client = md5($_SERVER[ "HTTP_USER_AGENT" ] . $_SERVER[ "REMOTE_ADDR" ] );
+$client = $_SERVER[ "HTTP_USER_AGENT" ] . $_SERVER[ "REMOTE_ADDR" ];
 
 if ( array_key_exists( "items", $_REQUEST ) )
 {
@@ -20,28 +20,15 @@ if ( array_key_exists( "items", $_REQUEST ) )
 			$item[ "owner" ] = $client;
 			unset( $item[ "modified" ] );
 			$newcontent = json_encode( $item );
-			$content = "";
-			$owner = "";
 			if ( file_exists( $path ) )
 			{
-				$modified = filemtime( $path );
-				$content = file_get_contents( $path );
-				$jscontent = json_decode( $content, true );
-				if ( key_exists( "owner", $jscontent ) )
+				if ( filemtime( $path ) != $date )
 				{
-					$owner = $jscontent[ "owner" ];
+					continue;
 				}
 			}
 			
-			$update = ( $date == 0 ) || ( $modified == $date ) || ( $owner == $client );
-			
-			if ( $update )
-			{
-				if ( $content != $newcontent )
-				{
-					file_put_contents( $path, $newcontent );
-				}
-			}
+			file_put_contents( $path, $newcontent );
 		}
 	}
 }

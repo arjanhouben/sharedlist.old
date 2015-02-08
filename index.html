@@ -89,8 +89,9 @@
 		$().ready(
 			function()
 			{
-				var unique = 0;
 				var lastSynced = new Date();
+				var currentData = {};
+				var session = null;
 				var container = $( "#scrollbox" );
 				var emptyrow = $( "<li><span class=\"item noselect\"></span><input disabled=\"true\" class=\"remove\" type=\"button\" value=\"weghalen\" /></li>" );
 				
@@ -141,12 +142,31 @@
 					container.append( strike );
 				}
 				
+				function isEmpty( obj )
+				{
+					for(var prop in obj)
+					{
+						if( obj.hasOwnProperty( prop ) )
+						{
+							return false;
+						}
+					}
+					return true;
+				}
+				
 				function updatePage( data )
 				{
-					if ( data[ "id" ] != unique )
+					if ( data.session )
 					{
-						return;
+						session = data.session;
 					}
+					
+					if ( !isEmpty( data.errors ) )
+					{
+						console.log( data.errors );
+					}
+					
+					currentData = data;
 					
 					var items = container.find( "li" ).remove();
 					
@@ -190,11 +210,6 @@
 					return data;
 				}
 				
-				function showError( str )
-				{
-					console.log( str );
-				}
-				
 				function itemDifferent( a, b )
 				{
 					if ( a[ "modified" ] === b[ "modified" ] )
@@ -212,55 +227,51 @@
 					var result = {};
 					for ( var k in b )
 					{
-						var d = itemDifferent( a[ k ], b[ k ] )
-						if ( d )
+						if ( a.hasOwnProperty( k ) )
 						{
-							result[ k ] = d;
+							var d = itemDifferent( a[ k ], b[ k ] )
+							if ( d )
+							{
+								result[ k ] = d;
+							}
+						}
+						else
+						{
+							result[ k ] = b[ k ];
 						}
 					}
 					return result;
 				}
-				
+
 				function sync()
 				{
 					sortList();
 					
 					var data = getData();
-					if ( !sync.lastData )
-					{
-						sync.lastData = data;
-					}
-					data[ "id" ] = ++unique;
 					
-/*					// diff todo
-					var d = diff( sync.lastData[ "items" ], data[ "items" ] );
-					console.log( d );
-					for ( var key in d )
-					{
-						console.log( key, d[ key ] );
-					}
-					sync.lastData = data;
-*/
-					
-					if ( this.last )
-					{
-						this.last.abort();
-					}
+					data[ "items" ] = diff( currentData[ "items" ], data[ "items" ] );
 					
 					if ( navigator.onLine )
 					{
+						if ( this.last )
+						{
+							this.last.abort();
+						}
+
+						if ( session )
+						{
+							data[ "session" ] = session;
+						}
+
 						this.last = $.post(
 							"sync.php",
+							data,
+							function( d )
 							{
-								"data": data,
-								"success": function( data )
-								{
-									updatePageJson( data );
-									lastSynced = new Date();
-								},
-								"error": showError
+								updatePageJson( d );
+								lastSynced = new Date();
 							}
-						)
+						);
 					}
 				}
 				
@@ -319,11 +330,20 @@
 				
 				function syncIfNeeded()
 				{
-					var now = new Date();
-					if ( now.getTime() - lastSynced.getTime() > 5000 )
-					{
-						sync();
-					}
+					// wait a bit in case the press that caused this update also
+					// triggered a real sync
+					clearTimeout( syncIfNeeded.timer );
+					syncIfNeeded.timer = setTimeout(
+						function()
+						{
+							var now = new Date();
+							if ( now.getTime() - lastSynced.getTime() > 5000 )
+							{
+								sync();
+							}
+						},
+						100
+					)
 				}
 				
 				var preventToggle = false;
@@ -486,6 +506,11 @@
 						}
 					}
 				);
+				
+				$(document).on(
+					"visibilitychange",
+					syncIfNeeded
+				)
 				
 				sync();
 			}

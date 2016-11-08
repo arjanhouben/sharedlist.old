@@ -1,17 +1,7 @@
 <?php
 
-$unique = 0;
 $error = array();
 $result = array();
-
-if ( array_key_exists( "session", $_REQUEST ) )
-{
-	$session = $_REQUEST[ "session" ];
-}
-else
-{
-	$session = md5( $_SERVER[ "HTTP_USER_AGENT" ] . $_SERVER[ "REMOTE_ADDR" ] . uniqid() );
-}
 
 if ( !file_exists( "items" ) )
 {
@@ -25,63 +15,80 @@ if ( $dh = opendir( "items" ) )
 		$path = "items/" . $file;
 		if ( is_file( $path ) )
 		{
-			error_log( "read " . $path );
 			$result[ $file ] = json_decode( file_get_contents( $path ), true );
-			$result[ $file ][ "modified" ] = filemtime( $path );
+			if ( !array_key_exists( "modified", $result[ $file ] ) )
+			{
+				$result[ $file ][ "modified" ] = 0;
+			}
 		}
 	}
 	
 	closedir( $dh );
 }
 
+$lastModified = -1;
+
+if ( array_key_exists( "lastModified", $_REQUEST ) )
+{
+	$lastModified = floatval( $_REQUEST[ "lastModified" ] );
+}
+
 if ( array_key_exists( "items", $_REQUEST ) )
 {
+	$currentModificationTime = microtime( true );
+	
 	foreach( $_REQUEST[ "items" ] as $name => &$item )
 	{
 		if ( is_array( $item ) && key_exists( "modified", $item ) && key_exists( "state", $item ) )
 		{
-			$path = "items/" . $name;
-			$current = &$result[ $name ];
+			$save_contents = true;
 			
-			if ( file_exists( $path ) )
+			if( array_key_exists( $name, $result ) )
 			{
+				$current = &$result[ $name ];
+				
 				if ( $current[ "state" ] == $item[ "state" ] )
 				{
 					$error[ $name ] = "redundant change, state remains at " . $current[ "state" ];
-					continue;
+					$save_contents = false;
 				}
-				
-				if ( key_exists( "session", $current ) && $current[ "session" ] != $session )
+			
+				if ( $current[ "modified" ] != $item[ "modified" ] )
 				{
-					if ( $current[ "modified" ] != $item[ "modified" ] )
-					{
-						$error[ $name ] = "could not be saved, state remains at " . $result[ "modified" ];
-						continue;
-					}
+					$error[ $name ] = "could not be saved, modified " . $current[ "modified" ] . " differs from " . $item[ "modified" ];
+					$save_contents = false;
 				}
 			}
 
-			unset( $item[ "modified" ] );
-			$item[ "session" ] = $session;
+			if( $save_contents )
+			{
+				$path = "items/" . $name;
+				
+				$item[ "modified" ] = $currentModificationTime;
+				
+				file_put_contents( $path, json_encode( $item ) );
 			
-			file_put_contents( $path, json_encode( $item ) );
-			
-			$current = $item;
-			$current[ "modified" ] = filemtime( $path );
+				$current = $item;
+			}
 		}
 	}
 }
 
 foreach( $result as $name => &$item )
 {
-	unset( $item[ "session" ] );
+	if ( $item[ "modified" ] <= $lastModified )
+	{
+		if ( !$error[ $name ] )
+		{
+			unset( $result[ $name ] );
+		}
+	}
 }
-
+	
 echo json_encode(
 	[
 		"items" => $result,
-		"errors" => $error,
-		"session" => $session
+		"errors" => $error
 	]
 );
 

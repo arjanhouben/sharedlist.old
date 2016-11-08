@@ -1,6 +1,7 @@
-<html>
+<html manifest="boodschappen.manifest">
 	<head>
-		<meta name="viewport" content="width=device-width, maximum-scale=1.0, user-scalable=yes">
+		<meta name="viewport" content="width=device-width, user-scalable=no" />
+		<meta content="yes" name="apple-mobile-web-app-capable" />
 		<link rel="apple-touch-icon" href="icon.png">
 		<link rel="apple-touch-icon-precomposed" href="icon-precomposed.png">
 		<style>
@@ -10,9 +11,10 @@
 			overflow: hidden;
 			height: 100%;
 			width: 100%;
-			display: table;
 			margin: 0;
-			border-spacing: 7px;
+			border: 5px #789 solid;
+			position: absolute;
+			box-sizing: border-box;
 		}
 		.customfont
 		{
@@ -24,10 +26,14 @@
 			background-color: transparent;
 			border-color: black;
 			border-width: 0 0 1px 0;
+			width: 100%;
 		}
 		.strike > span
 		{
 			text-decoration: line-through;
+			color: #555;
+			width: 65%;
+			overflow: hidden;
 		}
 		.noselect
 		{
@@ -42,42 +48,36 @@
 		{
 			display: none;
 		}
-		ul
-		{
-			display: table-row;
-			margin: 0;
-			padding: 0;
-			list-style-type: none;
-			white-space: nowrap;
-		}
 		#scrollbox
 		{
 			height: 100%;
 			overflow: auto;
+			position: relative;
 		}
 		#items
 		{
 			height: 100%;
 		}
-		li
+		.item
 		{
-			padding: 3pt;
+			position: relative;
+			width: 100%;
+			overflow: hidden;
 		}
-		li > *
+		.item > span
 		{
 			display: inline-block;
 		}
-		li > *:first-child
+		.item > .remove
 		{
-			width: 70%;
-			margin-right: 5%;
+			display: none;
 		}
-		li > *:last-child
+		.item.strike > .remove
 		{
-			width: 25%;
-		}
-		.item
-		{
+			position: absolute;
+			width: 30%;
+			right: 0;
+			display: inline-block;
 		}
 		.unsaved
 		{
@@ -86,27 +86,89 @@
 		</style>
 		<script type="text/javascript" src="jquery-1.9.1.min.js"></script>
 		<script type="text/javascript">
+		function for_key_value( obj, f )
+		{
+			for ( var k in obj )
+			{
+				if ( obj.hasOwnProperty( k ) )
+				{
+					f( k, obj[ k ] );
+				}
+			}
+		}
+		function getLastModified( items )
+		{
+			var m = 0;
+			for_key_value( items,
+				function( k, v )
+				{
+					if ( v.modified > m )
+					{
+						m = v.modified;
+					}
+				}
+			);
+			return m;
+		}
+		function LocalData()
+		{
+			this.get = function()
+			{
+				if ( !localStorage[ "boodschappen" ] )
+				{
+					localStorage[ "boodschappen" ] = "{}";
+				}
+				return JSON.parse( localStorage[ "boodschappen" ] );
+			}
+			
+			this.set = function( data )
+			{
+				localStorage[ "boodschappen" ] = JSON.stringify( data );
+			}
+		}
+		function parseQuery( query )
+		{
+			var result = {};
+			query
+				.substr( query.indexOf( '?' ) + 1 )
+				.split( '&' )
+				.forEach(
+					( i ) =>
+					{
+						var kv = i.split( '=' );
+						result[ kv[ 0 ] ] = kv[ 1 ];
+					}
+				)
+			return result;
+		}
 		$().ready(
 			function()
 			{
+				"use strict";
+		
+				const query = parseQuery( location.search );
 				var lastSynced = new Date();
-				var currentData = {};
-				var session = null;
+				var currentData = new LocalData();
 				var container = $( "#scrollbox" );
-				var emptyrow = $( "<li><span class=\"item noselect\"></span><input disabled=\"true\" class=\"remove\" type=\"button\" value=\"weghalen\" /></li>" );
+				var emptyrow = $( "<div class=\"item\"><span></span><input class=\"remove\" type=\"button\" value=\"weghalen\" /></div>" );
+				
+				if ( query.hasOwnProperty( "reset" ) )
+				{
+					currentData.set( {} );
+				}
 				
 				function getRow( item )
 				{
-					return item.parents( "li" );
+					return item.parents( "div.item" );
 				}
 				
 				function findItem( str )
 				{
 					var result = null;
-					container.find( ".item" ).each(
+					container.children( "div.item" ).each(
 						function( i, t )
 						{
-							if ( $(t).text() == str )
+							if ( $(t).children("span").text() === str )
 							{
 								result = t;
 								return false;
@@ -114,6 +176,29 @@
 						}
 					);
 					return $(result);
+				}
+				
+				function get_or_create_item( str )
+				{
+					var row = findItem( str );
+					if ( !row.length )
+					{
+						row = emptyrow.clone();
+						var span = row.children( "span" );
+						var remove_items = row.children( ".remove" );
+						function remove()
+						{
+							$(this).parent( "div.item" ).addClass( "hidden" );
+							sync();
+						}
+						remove_items.on(
+							"mouseup touchend touchstart",
+							remove
+						);
+						span.text( str );
+					}
+					container.prepend( row );
+					return row;
 				}
 				
 				function updatePageJson( data )
@@ -132,7 +217,7 @@
 				
 				function sortList()
 				{
-					var items = container.find( "li" );
+					var items = container.children( "div.item" );
 					var active = items.not( ".hidden" );
 					var strike = active.filter( ".strike" );
 					var normal = active.not( ".strike" );
@@ -144,128 +229,125 @@
 				
 				function isEmpty( obj )
 				{
-					for(var prop in obj)
+					return Object.keys( obj ).length === 0;
+				}
+				
+				function fillPage( data )
+				{
+					for ( var name in data )
 					{
-						if( obj.hasOwnProperty( prop ) )
-						{
-							return false;
-						}
+						var i = get_or_create_item( name );
+						i.data( "modified", data[ name ][ "modified" ] );
+						i.removeClass( "hidden" );
+						i.removeClass( "strike" );
+						i.addClass( data[ name ][ "state" ] );
 					}
-					return true;
+					
+					sortList()
 				}
 				
 				function updatePage( data )
 				{
-					if ( data.session )
-					{
-						session = data.session;
-					}
-					
+					var complete = currentData.get();
+					var diff = get_new_changes( complete, data[ "items" ] );
+
+					for_key_value(
+						data[ "items" ],
+						( k, v ) => { complete[ k ] = v; }
+					);
+
+					currentData.set( complete );
+										
 					if ( !isEmpty( data.errors ) )
 					{
 						console.log( data.errors );
+						fillPage( complete );
 					}
-					
-					currentData = data;
-					
-					var items = container.find( "li" ).remove();
-					
-					for ( var name in data[ "items" ] )
+					else
 					{
-						addRow( name );
-						var i = findItem( name );
-						var item = data[ "items" ][ name ];
-						i.data( "modified", item[ "modified" ] );
-						var row = getRow( i );
-						row.removeClass( "strike" );
-						row.addClass( item[ "state" ] );
-						row.find( ".remove" ).attr( "disabled", !row.hasClass( "strike" ) );
+						fillPage( diff );
 					}
-					
-					sortList()
+
 					
 					$(".unsaved").removeClass( "unsaved" );
 				}
 				
-				function getData()
+				function getItemsFromPage()
 				{
-					var data = {
-						"items": {}
-					};
-					container.find( ".item" ).each(
+					var items = {};
+					container.children( "div.item" ).each(
 						function( i, t )
 						{
-							var str = $(t).text();
-							if ( !str.length )
+							var row = $(t);
+							var str = row.children("span").text();
+							if ( str.length )
 							{
-								return;
+								items[ str ] = {
+									"modified": row.data( "modified" ) || 0,
+									"state": row.hasClass( "hidden" ) ? "hidden" : ( row.hasClass( "strike" ) ? "strike" : "active" )
+								};
 							}
-							var row = getRow( $(t) );
-							data[ "items" ][ str ] = {
-								"modified": $(t).data( "modified" ) || 0,
-								"state": row.hasClass( "hidden" ) ? "hidden" : ( row.hasClass( "strike" ) ? "strike" : "active" )
-							};
 						}
 					);
-					return data;
+					return items;
 				}
 				
 				function itemDifferent( a, b )
 				{
-					if ( a[ "modified" ] === b[ "modified" ] )
-					{
-						if ( a[ "state" ] === b[ "state" ] )
-						{
-							return null;
-						}
-					}
-					return b;
+					return ( a[ "state" ] !== b[ "state" ] );
 				}
 			
-				function diff( a, b )
+				function get_new_changes( old_value, new_value )
 				{
 					var result = {};
-					for ( var k in b )
+					if ( !old_value )
 					{
-						if ( a.hasOwnProperty( k ) )
+						return new_value;
+					}
+					for_key_value( new_value,
+						function( k, v )
 						{
-							var d = itemDifferent( a[ k ], b[ k ] )
-							if ( d )
+							if ( old_value.hasOwnProperty( k ) )
 							{
-								result[ k ] = d;
+								if ( itemDifferent( old_value[ k ], v ) )
+								{
+									result[ k ] = v;
+								}
+							}
+							else
+							{
+								result[ k ] = v;
 							}
 						}
-						else
-						{
-							result[ k ] = b[ k ];
-						}
-					}
+					)
 					return result;
 				}
 
 				function sync()
 				{
-					sortList();
-					
-					var data = getData();
-					
-					data[ "items" ] = diff( currentData[ "items" ], data[ "items" ] );
-					
 					if ( navigator.onLine )
 					{
-						if ( this.last )
+						var lastServerData = currentData.get();
+						
+						var diff = get_new_changes(
+							lastServerData,
+							getItemsFromPage()
+						);
+						
+						if ( !isEmpty( diff ) )
 						{
-							this.last.abort();
+							diff = { "items" : diff };
 						}
-
-						if ( session )
+						
+						var lastModified = getLastModified( lastServerData );
+						if ( lastModified )
 						{
-							data[ "session" ] = session;
+							diff[ "lastModified" ] = lastModified;
 						}
-
-						this.last = $.post(
+						
+						$.post(
 							"sync.php",
-							data,
+							diff,
 							function( d )
 							{
 								updatePageJson( d );
@@ -277,30 +359,12 @@
 				
 				function addRow( str )
 				{
-					if ( !str.length )
+					if ( str.length )
 					{
-						return;
-					}
-					var item = findItem( str );
-					var row = getRow( item );
-					if ( !item.length )
-					{
-						row = emptyrow.clone();
-						row.find( ".item" ).text( str );
-						container.append( row );
-					}
-					else if ( row.hasClass( "hidden" ) )
-					{
+						var row = get_or_create_item( str );
 						row.removeClass( "hidden" );
 						row.removeClass( "strike" );
-						row.find( ".remove" ).attr( "disabled", true );
 					}
-					else if ( row.hasClass( "strike" ) )
-					{
-						row.removeClass( "strike" );
-						row.find( ".remove" ).attr( "disabled", true );
-					}
-					container.find( "li:first" ).before( row );
 				}
 				
 				function removeItem( str )
@@ -314,19 +378,6 @@
 				}
 				
 				var input = $("input[name=item]");
-				
-				$("#additem").on
-				(
-					"click",
-					function( e )
-					{
-						addRow( input.val().trim() );
-						sync();
-						input.val( "" );
-						e.preventDefault();
-						input.focus();
-					}
-				);
 				
 				function syncIfNeeded()
 				{
@@ -354,25 +405,14 @@
 					var row = getRow( $(e.target) );
 					row.toggleClass( "strike" ).addClass( "unsaved" );
 					var isStrike = row.hasClass( "strike" );
-					row.find( ".remove" ).attr( "disabled", !isStrike );
 					sync();
 					e.preventDefault();
 				}
 				
 				var refocus = false;
 				
-				$(this)
+				$(document)
 				.on
-				(
-					"click",
-					".remove",
-					function( e )
-					{
-						var str = getRow( $(this) ).find( ".item" ).text();
-						removeItem( str );
-						sync();
-					}
-				).on
 				(
 					"touchend",
 					".item",
@@ -402,18 +442,14 @@
 						preventToggle = false;
 						syncIfNeeded();
 					}
-				).on
+				)
+				.on
 				(
 					"mouseup",
-					".item",
+					".item>span",
 					toggleRow
-				).on(
-					"keydown",
-					syncIfNeeded
-				).on(
-					"mousedown",
-					syncIfNeeded
-				).on
+				)
+				.on
 				(
 					"keyup",
 					function( e )
@@ -430,7 +466,7 @@
 				function findMatching( str )
 				{
 					var result = [];
-					for ( var i in getData().items )
+					for ( var i in getItemsFromPage() )
 					{
 						if ( i.length > str.length && i.lastIndexOf( str, str.length ) === 0 )
 						{
@@ -496,7 +532,7 @@
 					}
 				).on
 				(
-					"touchstart",
+					"touchstart mousedown",
 					function( e )
 					{
 						if ( document.activeElement == this )
@@ -504,6 +540,7 @@
 							this.blur();
 							e.preventDefault();
 						}
+						syncIfNeeded();
 					}
 				);
 				
@@ -512,18 +549,20 @@
 					syncIfNeeded
 				)
 				
+				fillPage( currentData.get() );
+				
 				sync();
 			}
 		);
 		</script>
 	</head>
-	<body>
-		<ul class="customfont">
-			<li><input name="item" class="customfont" type="text" /><input id="additem" type="button" value="toevoegen" /></li>
-		</ul>
-		<ul class="customfont" id="items">
+	<body class="customfont noselect">
+		<div>
+			<input name="item" type="text" />
+		</div>
+		<div id="items">
 			<div id="scrollbox">
 			</div>
-		</ul>
+		</div>
 	</body>
 </html>

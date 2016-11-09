@@ -1,4 +1,5 @@
 <html manifest="cache.manifest">
+<!--<html>-->
 	<head>
 		<meta name="viewport" content="width=device-width, user-scalable=no" />
 		<meta content="yes" name="apple-mobile-web-app-capable" />
@@ -16,17 +17,33 @@
 			position: absolute;
 			box-sizing: border-box;
 		}
+		html, body > *
+		{
+			position: absolute;
+		}
+		#items
+		{
+			top: 28pt;
+			bottom: 0;
+			left: 0;
+			right: 0;
+		}
 		.customfont
 		{
 			font-size: 18pt;
 			font-family: sans-serif;
+			font-weight: lighter;
 		}
 		input[type=text]
 		{
 			background-color: transparent;
 			border-color: black;
 			border-width: 0 0 1px 0;
-			width: 100%;
+			border-radius: 0;
+			top: 0;
+			left: 0;
+			right: 0;
+			height: 24pt;
 		}
 		.strike > span
 		{
@@ -52,11 +69,6 @@
 		{
 			height: 100%;
 			overflow: auto;
-			position: relative;
-		}
-		#items
-		{
-			height: 100%;
 		}
 		.item
 		{
@@ -557,9 +569,7 @@
 		</script>
 	</head>
 	<body class="customfont noselect">
-		<div>
-			<input name="item" type="text" />
-		</div>
+		<input class="customfont" name="item" type="text" />
 		<div id="items">
 			<div id="scrollbox">
 			</div>

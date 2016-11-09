@@ -64,11 +64,13 @@ if ( array_key_exists( "items", $_REQUEST ) )
 			{
 				$path = "items/" . $name;
 				
-				$item[ "modified" ] = $currentModificationTime;
-				
-				file_put_contents( $path, json_encode( $item ) );
+				$current[ "modified" ] = $currentModificationTime;
 			
-				$current = $item;
+				$current[ "state" ] = $item[ "state" ];
+				
+				$current[ "usecount" ] = intval( $current[ "usecount" ] ) + 1;
+				
+				file_put_contents( $path, json_encode( $current ) );
 			}
 		}
 	}

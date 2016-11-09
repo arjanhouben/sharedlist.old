@@ -41,37 +41,32 @@ if ( array_key_exists( "items", $_REQUEST ) )
 	{
 		if ( is_array( $item ) && key_exists( "modified", $item ) && key_exists( "state", $item ) )
 		{
-			$save_contents = true;
+			$current = &$result[ $name ];
 			
 			if( array_key_exists( $name, $result ) )
 			{
-				$current = &$result[ $name ];
-				
 				if ( $current[ "state" ] == $item[ "state" ] )
 				{
 					$error[ $name ] = "redundant change, state remains at " . $current[ "state" ];
-					$save_contents = false;
+					continue;
 				}
 			
 				if ( $current[ "modified" ] != $item[ "modified" ] )
 				{
 					$error[ $name ] = "could not be saved, modified " . $current[ "modified" ] . " differs from " . $item[ "modified" ];
-					$save_contents = false;
+					continue;
 				}
 			}
-
-			if( $save_contents )
-			{
-				$path = "items/" . $name;
-				
-				$current[ "modified" ] = $currentModificationTime;
 			
-				$current[ "state" ] = $item[ "state" ];
-				
-				$current[ "usecount" ] = intval( $current[ "usecount" ] ) + 1;
-				
-				file_put_contents( $path, json_encode( $current ) );
-			}
+			$path = "items/" . $name;
+			
+			$current[ "modified" ] = $currentModificationTime;
+		
+			$current[ "state" ] = $item[ "state" ];
+			
+			$current[ "usecount" ] = intval( $current[ "usecount" ] ) + 1;
+			
+			file_put_contents( $path, json_encode( $current ) );
 		}
 	}
 }

@@ -1,7 +1,7 @@
 <?php
 
 $error = array();
-$result = array();
+$server_data = array();
 
 if ( !file_exists( "items" ) )
 {
@@ -15,10 +15,10 @@ if ( $dh = opendir( "items" ) )
 		$path = "items/" . $file;
 		if ( is_file( $path ) )
 		{
-			$result[ $file ] = json_decode( file_get_contents( $path ), true );
-			if ( !array_key_exists( "modified", $result[ $file ] ) )
+			$server_data[ $file ] = json_decode( file_get_contents( $path ), true );
+			if ( !array_key_exists( "modified", $server_data[ $file ] ) )
 			{
-				$result[ $file ][ "modified" ] = 0;
+				$server_data[ $file ][ "modified" ] = 0;
 			}
 		}
 	}
@@ -39,22 +39,26 @@ if ( array_key_exists( "items", $_REQUEST ) )
 	
 	foreach( $_REQUEST[ "items" ] as $name => &$item )
 	{
-		if ( is_array( $item ) && key_exists( "modified", $item ) && key_exists( "state", $item ) )
+		if ( is_array( $item ) )
 		{
-			$current = &$result[ $name ];
+			$current = &$server_data[ $name ];
 			
-			if( array_key_exists( $name, $result ) )
+			if ( $current )
 			{
+				
 				if ( $current[ "state" ] == $item[ "state" ] )
 				{
 					$error[ $name ] = "redundant change, state remains at " . $current[ "state" ];
 					continue;
 				}
 			
-				if ( $current[ "modified" ] != $item[ "modified" ] )
+				if ( array_key_exists( "modified", $current ) )
 				{
-					$error[ $name ] = "could not be saved, modified " . $current[ "modified" ] . " differs from " . $item[ "modified" ];
-					continue;
+					if ( $current[ "modified" ] != $item[ "modified" ] )
+					{
+						$error[ $name ] = "could not be saved, modified " . $current[ "modified" ] . " differs from " . $item[ "modified" ];
+						continue;
+					}
 				}
 			}
 			
@@ -71,20 +75,20 @@ if ( array_key_exists( "items", $_REQUEST ) )
 	}
 }
 
-foreach( $result as $name => &$item )
+foreach( $server_data as $name => &$item )
 {
 	if ( $item[ "modified" ] <= $lastModified )
 	{
 		if ( !$error[ $name ] )
 		{
-			unset( $result[ $name ] );
+			unset( $server_data[ $name ] );
 		}
 	}
 }
 	
 echo json_encode(
 	[
-		"items" => $result,
+		"items" => $server_data,
 		"errors" => $error
 	]
 );

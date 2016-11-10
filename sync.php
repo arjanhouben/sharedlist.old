@@ -2,6 +2,13 @@
 
 $error = array();
 $server_data = array();
+$request = array();
+
+if ( array_key_exists( "json", $_REQUEST ) )
+{
+	$json = ( $_REQUEST[ "json" ] );
+	$request = json_decode( $json, true );
+}
 
 if ( !file_exists( "items" ) )
 {
@@ -28,16 +35,16 @@ if ( $dh = opendir( "items" ) )
 
 $lastModified = -1;
 
-if ( array_key_exists( "lastModified", $_REQUEST ) )
+if ( array_key_exists( "lastModified", $request ) )
 {
-	$lastModified = floatval( $_REQUEST[ "lastModified" ] );
+	$lastModified = floatval( $request[ "lastModified" ] );
 }
 
-if ( array_key_exists( "items", $_REQUEST ) )
+if ( array_key_exists( "items", $request ) )
 {
 	$currentModificationTime = microtime( true );
 	
-	foreach( $_REQUEST[ "items" ] as $name => &$item )
+	foreach( $request[ "items" ] as $name => &$item )
 	{
 		if ( is_array( $item ) )
 		{

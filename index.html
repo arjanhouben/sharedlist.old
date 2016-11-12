@@ -1,11 +1,12 @@
 <!--<html manifest="cache.manifest">-->
 <html>
 	<head>
-		<meta name="viewport" content="width=device-width, user-scalable=no" />
-		<meta content="yes" name="apple-mobile-web-app-capable" />
-		<link rel="apple-touch-icon" href="icon.png">
-		<link rel="apple-touch-icon-precomposed" href="icon.png">
+		<title>Boodschappen</title>
+		<meta name="viewport" content="width=device-width,height=device-height,user-scalable=no,initial-scale=1.0,maximum-scale=1.0,minimum-scale=1.0" />
+		<meta name="apple-mobile-web-app-capable" content="yes" />
+		<meta name="apple-mobile-web-app-status-bar-style" content="translucent-black" />
 		<link rel="shortcut icon" href="favicon.ico" type="image/x-icon" />
+		<link rel="apple-touch-icon" href="icon.png">
 		<style>
 		html, body
 		{
@@ -70,6 +71,7 @@
 		{
 			height: 100%;
 			overflow: auto;
+			-webkit-overflow-scrolling: touch;
 		}
 		.item
 		{
@@ -336,8 +338,16 @@
 				for_key_value( item_cache,
 					function( k, v )
 					{
+						var m = 0;
+						if( cache.hasOwnProperty( k ) )
+						{
+							if ( cache[ k ].hasOwnProperty( "modified" ) )
+							{
+								m = cache[ k ].modified;
+							}
+						}
 						items[ k ] = {
-							"modified": cache[ k ][ "modified" ] || 0,
+							"modified": m,
 							"state": v.className.replace( / *item */, "" )
 						}
 					}
@@ -488,13 +498,32 @@
 					toggleRow( e );
 				}
 			);
+			document.body.ontouchmove = function( e )
+			{
+				if ( container.scrollTop < 0 )
+				{
+					container.scrollTop = 1;
+					return false;
+				}
+			}
 			
 			document.ontouchend = document.onmouseup;
 			
-			document.ontouchmove = function()
-			{
-				preventToggle = true;
-			}
+//			document.ontouchmove = function( e )
+//			{
+//				preventToggle = true;
+//				e.preventPropagation();
+//			}
+			on( document,
+				"ontouchmove",
+				"#scrollbox",
+				function( e )
+				{
+					preventToggle = true;
+					e.stopPropagation();
+				}
+			)
+			
 			document.ontouchstart = function( e )
 			{
 				refocus = document.activeElement == input;
@@ -547,11 +576,6 @@
 			}
 			
 			var nosuggest = false;
-			
-			input.onkeypress = function( e )
-			{
-				console.log( e );
-			}
 			
 			input.onkeydown = function( e )
 			{

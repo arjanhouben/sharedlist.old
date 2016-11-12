@@ -1,5 +1,5 @@
-<html manifest="cache.manifest">
-<!--<html>-->
+<!--<html manifest="cache.manifest">-->
+<html>
 	<head>
 		<meta name="viewport" content="width=device-width, user-scalable=no" />
 		<meta content="yes" name="apple-mobile-web-app-capable" />
@@ -147,7 +147,7 @@
 				.substr( query.indexOf( '?' ) + 1 )
 				.split( '&' )
 				.forEach(
-					( i ) =>
+					function( i )
 					{
 						var kv = i.split( '=' );
 						result[ kv[ 0 ] ] = kv[ 1 ];
@@ -196,7 +196,7 @@
 		}
 		window.onload = function()
 		{
-			const query = parseQuery( location.search );
+			var query = parseQuery( location.search );
 			var lastSynced = new Date();
 			var currentData = new LocalData();
 			var container = ONE( "#scrollbox" );
@@ -239,7 +239,7 @@
 				if ( !row )
 				{
 					row = emptyrow();
-					function remove()
+					var remove = function()
 					{
 						this.parentNode.classList.add( "hidden" );
 						sync();
@@ -286,7 +286,7 @@
 			{
 				var tmp = ALL( "div.item:not(.hidden)", container );
 				tmp.sort( sortItems ).forEach(
-					( v ) => { container.appendChild( v ); }
+					function( v ) { container.appendChild( v ); }
 				);
 			}
 			
@@ -301,7 +301,7 @@
 				{
 					var i = get_or_create_item( name );
 					i.classList.remove( "hidden", "strike" );
-					data[ name ][ "state" ].split( ' ' ).filter(Boolean).forEach( ( v ) => { i.classList.add( v ); } );
+					data[ name ][ "state" ].split( ' ' ).filter(Boolean).forEach( function( v ) { i.classList.add( v ); } );
 				}
 				
 				sortList();
@@ -314,7 +314,7 @@
 
 				for_key_value(
 					data[ "items" ],
-					( k, v ) => { complete[ k ] = v; }
+					function( k, v ) { complete[ k ] = v; }
 				);
 
 				currentData.set( complete );
@@ -326,7 +326,7 @@
 				fillPage( diff );
 
 				
-				ALL(".unsaved").forEach( (o) => { o.classList.remove( "unsaved" ); } );
+				ALL(".unsaved").forEach( function( o ) { o.classList.remove( "unsaved" ); } );
 			}
 			
 			function getItemsFromPage()
@@ -334,7 +334,8 @@
 				var cache = currentData.get();
 				var items = {};
 				for_key_value( item_cache,
-					( k, v ) => {
+					function( k, v )
+					{
 						items[ k ] = {
 							"modified": cache[ k ][ "modified" ] || 0,
 							"state": v.className.replace( / *item */, "" )
@@ -547,6 +548,10 @@
 			
 			var nosuggest = false;
 			
+			input.onkeypress = function( e )
+			{
+				console.log( e );
+			}
 			
 			input.onkeydown = function( e )
 			{

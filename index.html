@@ -4,7 +4,7 @@
 		<title>Boodschappen</title>
 		<meta name="viewport" content="width=device-width,height=device-height,user-scalable=no,initial-scale=1.0,maximum-scale=1.0,minimum-scale=1.0" />
 		<meta name="apple-mobile-web-app-capable" content="yes" />
-		<meta name="apple-mobile-web-app-status-bar-style" content="translucent-black" />
+		<meta name="apple-mobile-web-app-status-bar-style" content="black" />
 		<link rel="shortcut icon" href="favicon.ico" type="image/x-icon" />
 		<link rel="apple-touch-icon" href="icon.png">
 		<style>
@@ -51,7 +51,6 @@
 		{
 			text-decoration: line-through;
 			color: #555;
-			width: 65%;
 			overflow: hidden;
 		}
 		.noselect
@@ -79,25 +78,20 @@
 			width: 100%;
 			overflow: hidden;
 			white-space: nowrap;
+			transition: width 1.5s ease-in-out, background-color 0.2s;
 		}
 		.item > span
 		{
 			display: inline-block;
 		}
-		.item > .remove
-		{
-			display: none;
-		}
-		.item.strike > .remove
-		{
-			position: absolute;
-			width: 30%;
-			right: 0;
-			display: inline-block;
-		}
 		.unsaved
 		{
 			font-style: italic;
+		}
+		.remove_all
+		{
+			width: 0;
+			background-color: rgba( 0, 0, 0, 0.1 );
 		}
 		</style>
 		<script type="text/javascript">
@@ -142,6 +136,13 @@
 				localStorage[ "boodschappen" ] = JSON.stringify( data );
 			}
 		}
+		function bind( f, t )
+		{
+			var args = Array.prototype.slice.call( arguments, 2 );
+			return function(){
+				f.apply( t, args );
+			}
+		}
 		function parseQuery( query )
 		{
 			var result = {};
@@ -174,32 +175,78 @@
 			var span = document.createElement( "span" );
 			div.appendChild( span );
 			div.span = span;
-			var input = document.createElement( "input" );
-			input.className = "remove hidden";
-			input.type = "button";
-			input.value = "weghalen";
-			div.appendChild( input );
-			div.input = input;
 			return div;
 		}
 		function on( obj, ev, selector, f )
 		{
-			if( obj[ ev ] ) throw "can only assign once!";
+			var old = obj[ ev ] || function() {};
 			obj[ ev ] = function( e )
 			{
-				var t = e.target;
-				while ( !t.matches( selector ) )
+				old( e );
+				if ( selector )
 				{
-					t = t.parentNode;
-					if ( t == document ) return;
+					var t = e.target;
+					while ( t && t !== document )
+					{
+						if ( t.matches( selector ) )
+						{
+							return f.call( t, e, t );
+						}
+						t = t.parentNode;
+					}
 				}
-				f.call( t, e );
+				else
+				{
+					return f.call( e.target, e, e.target );
+				}
 			}
+		}
+		function Timer( duration, callbacks )
+		{
+			if ( !callbacks ) callbacks = {};
+			var args = Array.prototype.slice.call( arguments, 2 );
+			var to = 0;
+			var always = callbacks.always;
+			var end = function( f )
+			{
+				if ( to )
+				{
+					clearTimeout( to );
+					to = 0;
+					if ( always )
+					{
+						always.apply( this, args );
+						always = 0;
+					}
+					if ( f ) f.apply( this, args );
+				}
+			}
+			if ( duration )
+			{
+				to = setTimeout( end.bind( this, callbacks.timeout ), duration );
+			}
+			this.cancel = end.bind( this, callbacks.cancel );
+			this.abort = end.bind( this, callbacks.abort );
+			return this;
+		}
+		function for_all_in( col, parent, fun )
+		{
+			var args = Array.prototype.slice.call( arguments, 3 );
+			Array.prototype.forEach.call( col,
+				function( t )
+				{
+					var p = t;
+					for ( var i = 0, len = parent.length; i != len; ++i )
+					{
+						p = p[ parent[ i ] ];
+					}
+					p[ fun ].apply( p, args );
+				}
+			)
 		}
 		window.onload = function()
 		{
 			var query = parseQuery( location.search );
-			var lastSynced = new Date();
 			var currentData = new LocalData();
 			var container = ONE( "#scrollbox" );
 			var item_cache = {};
@@ -241,14 +288,6 @@
 				if ( !row )
 				{
 					row = emptyrow();
-					var remove = function()
-					{
-						this.parentNode.classList.add( "hidden" );
-						sync();
-					}
-					row.input.onmouseup = remove;
-					row.input.ontouchend = remove;
-					row.input.ontouchstart = remove;
 					row.span.innerText = str;
 				}
 				container.appendChild( row );
@@ -297,13 +336,29 @@
 				return Object.keys( obj ).length === 0;
 			}
 			
+			function keep_hidden_active_strike( v )
+			{
+				switch( v )
+				{
+					case "hidden":
+					case "active":
+					case "strike":
+						return true;
+					default:
+						return false;
+				}
+			}
+			
 			function fillPage( data )
 			{
 				for ( var name in data )
 				{
 					var i = get_or_create_item( name );
 					i.classList.remove( "hidden", "strike" );
-					data[ name ][ "state" ].split( ' ' ).filter(Boolean).forEach( function( v ) { i.classList.add( v ); } );
+					data[ name ][ "state" ]
+						.split( ' ' )
+						.filter( keep_hidden_active_strike )
+						.forEach( function( v ) { i.classList.add( v ); } );
 				}
 				
 				sortList();
@@ -348,7 +403,7 @@
 						}
 						items[ k ] = {
 							"modified": m,
-							"state": v.className.replace( / *item */, "" )
+							"state": Array.prototype.filter.call( v.classList, keep_hidden_active_strike ).join( " " )
 						}
 					}
 				)
@@ -427,11 +482,7 @@
 					post(
 						"sync.php",
 						diff,
-						function( d )
-						{
-							updatePageJson( d );
-							lastSynced = new Date();
-						}
+						updatePageJson
 					);
 				}
 			}
@@ -453,93 +504,108 @@
 			
 			var input = ONE("input[name=item]");
 			
+			var sync_timeout = null;
+			
 			function syncIfNeeded()
 			{
 				// wait a bit in case the press that caused this update also
 				// triggered a real sync
-				clearTimeout( syncIfNeeded.timer );
-				syncIfNeeded.timer = setTimeout(
-					function()
-					{
-						var now = new Date();
-						if ( now.getTime() - lastSynced.getTime() > 5000 )
-						{
-							sync();
-						}
-					},
-					100
-				)
+				clearTimeout( sync_timeout );
+				sync_timeout = setTimeout( sync, 1000 );
 			}
 			
-			var preventToggle = false;
+			var start_touch = new Timer();
 			
-			function toggleRow( e )
+			function toggle_row( t )
 			{
-				if ( preventToggle ) return;
-				var row = getRow( e.target ).classList;
+				var row = getRow( t ).classList;
 				row.toggle( "strike" );
 				row.add( "unsaved" );
 				sortList();
-				sync();
-				e.preventDefault();
+				syncIfNeeded();
 			}
 			
-			var refocus = false;
-			
-			on( document,
-				"onmouseup",
-				".item",
-				function( e )
-				{
-					if ( refocus )
-					{
-						input.focus();
-					}
-					toggleRow( e );
-				}
-			);
-			document.body.ontouchmove = function( e )
+			function long_press( t )
 			{
-				if ( container.scrollTop < 0 )
+				if ( t.matches( ".strike" ) )
 				{
-					container.scrollTop = 1;
-					return false;
+					var collection = ALL(":not(.hidden).strike");
+					
+					for_all_in(
+						collection,
+						[ "classList" ],
+						[ "add" ],
+						"remove_all"
+					);
+					
+					var obj = t;
+					start_touch = new Timer( 1500,
+						{
+							"timeout": function( o )
+							{
+								for_all_in(
+									collection,
+									[ "classList" ],
+									"add",
+									"hidden"
+								);
+								syncIfNeeded();
+							},
+							"always": function( o )
+							{
+								for_all_in(
+									collection,
+									[ "classList" ],
+									"remove",
+									"remove_all"
+								);
+							}
+						},
+						obj
+					)
 				}
 			}
 			
-			document.ontouchend = document.onmouseup;
-			
-//			document.ontouchmove = function( e )
-//			{
-//				preventToggle = true;
-//				e.preventPropagation();
-//			}
 			on( document,
-				"ontouchmove",
-				"#scrollbox",
-				function( e )
+				"ontouchstart",
+				".item",
+				function( e, obj )
 				{
-					preventToggle = true;
-					e.stopPropagation();
+					input.blur();
+					start_touch = new Timer( 100,
+						{
+							"timeout": long_press,
+							"cancel": toggle_row
+						},
+						obj
+					)
 				}
 			)
 			
-			document.ontouchstart = function( e )
-			{
-				refocus = document.activeElement == input;
-				input.blur();
-				preventToggle = false;
-				syncIfNeeded();
-				
-			}
+			document.onmousedown = document.ontouchstart;
+			
+			on( document,
+				"ontouchmove",
+				"#scrollbox",
+				function(){ start_touch.abort(); }
+			)
+			
+			on( document,
+				"onmouseup",
+				null,
+				function(){ start_touch.cancel() }
+			);
+			
+			document.ontouchend = document.onmouseup;
 			
 			document.onkeyup = function( e )
 			{
 				if ( e.keyCode == 13 )
 				{
 					addRow( input.value.trim() );
-					sync();
 					input.value = "";
+					sortList();
+					syncIfNeeded();
 				}
 			}
 			
@@ -612,7 +678,6 @@
 					this.blur();
 					e.preventDefault();
 				}
-				syncIfNeeded();
 			}
 			
 			input.onmousedown = input.ontouchstart;

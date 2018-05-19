@@ -123,16 +123,16 @@
 		{
 			this.get = function()
 			{
-				if ( !localStorage[ "boodschappen" ] )
+				if ( !localStorage[ window.location.host + window.location.pathname ] )
 				{
-					localStorage[ "boodschappen" ] = "{}";
+					localStorage[ window.location.host + window.location.pathname ] = "{}";
 				}
-				return JSON.parse( localStorage[ "boodschappen" ] );
+				return JSON.parse( localStorage[ window.location.host + window.location.pathname ] );
 			}
 			
 			this.set = function( data )
 			{
-				localStorage[ "boodschappen" ] = JSON.stringify( data );
+				localStorage[ window.location.host + window.location.pathname ] = JSON.stringify( data );
 			}
 		}
 		function bind( f, t )

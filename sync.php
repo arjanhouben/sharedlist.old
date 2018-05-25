@@ -8,7 +8,7 @@ if ( $_REQUEST )
 {
 	if ( array_key_exists( "json", $_REQUEST ) )
 	{
-		$json = ( $_REQUEST[ "json" ] );
+		$json = $_REQUEST[ "json" ];
 		$request = json_decode( $json, true );
 	}
 }
@@ -99,16 +99,13 @@ foreach( $server_data as $name => &$item )
 {
 	if ( $item[ "modified" ] <= $lastModified )
 	{
-		if ( array_key_exists( $name, $error ) )
+		if ( !array_key_exists( $name, $error ) )
 		{
-			if ( !$error[ $name ] )
-			{
-				unset( $server_data[ $name ] );
-			}
+			unset( $server_data[ $name ] );
 		}
 	}
 }
-	
+
 echo json_encode(
 	[
 		"items" => $server_data,

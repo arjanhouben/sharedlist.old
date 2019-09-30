@@ -1,5 +1,4 @@
 <html>
-<!--<html>-->
 	<head>
 		<title><?php
 $path_parts = pathinfo( __FILE__ );
@@ -114,7 +113,7 @@ echo basename( $path_parts["dirname"] );
 			for_key_value( items,
 				function( k, v )
 				{
-					if ( v.modified > m )
+					if ( v && v.modified > m )
 					{
 						m = v.modified;
 					}
@@ -126,16 +125,16 @@ echo basename( $path_parts["dirname"] );
 		{
 			this.get = function()
 			{
-				if ( !localStorage[ "boodschappen" ] )
+				if ( !localStorage[ window.location.host + window.location.pathname ] )
 				{
-					localStorage[ "boodschappen" ] = "{}";
+					localStorage[ window.location.host + window.location.pathname ] = "{}";
 				}
-				return JSON.parse( localStorage[ "boodschappen" ] );
+				return JSON.parse( localStorage[ window.location.host + window.location.pathname ] );
 			}
 			
 			this.set = function( data )
 			{
-				localStorage[ "boodschappen" ] = JSON.stringify( data );
+				localStorage[ window.location.host + window.location.pathname ] = JSON.stringify( data );
 			}
 		}
 		function bind( f, t )
@@ -407,7 +406,7 @@ echo basename( $path_parts["dirname"] );
 					function( k, v )
 					{
 						var m = 0;
-						if( cache.hasOwnProperty( k ) )
+						if( cache.hasOwnProperty( k ) && cache[ k ] )
 						{
 							if ( cache[ k ].hasOwnProperty( "modified" ) )
 							{
@@ -425,7 +424,7 @@ echo basename( $path_parts["dirname"] );
 			
 			function itemDifferent( a, b )
 			{
-				return ( a[ "state" ] !== b[ "state" ] );
+				return !a || !b || ( a[ "state" ] !== b[ "state" ] );
 			}
 		
 			function get_new_changes( old_value, new_value )
@@ -438,16 +437,19 @@ echo basename( $path_parts["dirname"] );
 				for_key_value( new_value,
 					function( k, v )
 					{
-						if ( old_value.hasOwnProperty( k ) )
+						if ( v )
 						{
-							if ( itemDifferent( old_value[ k ], v ) )
+							if ( old_value.hasOwnProperty( k ) )
+							{
+								if ( itemDifferent( old_value[ k ], v ) )
+								{
+									result[ k ] = v;
+								}
+							}
+							else
 							{
 								result[ k ] = v;
 							}
-						}
-						else
-						{
-							result[ k ] = v;
 						}
 					}
 				)

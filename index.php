@@ -1,9 +1,6 @@
 <html>
 	<head>
-		<title><?php
-$path_parts = pathinfo( __FILE__ );
-echo basename( $path_parts["dirname"] );
-?></title>
+		<title></title>
 		<meta name="viewport" content="width=device-width,height=device-height,user-scalable=no,initial-scale=1.0,maximum-scale=1.0,minimum-scale=1.0" />
 		<meta name="apple-mobile-web-app-capable" content="yes" />
 		<link rel="shortcut icon" href="favicon.ico" type="image/x-icon" />
@@ -245,17 +242,6 @@ echo basename( $path_parts["dirname"] );
 				}
 			)
 		}
-		function hashCode( str )
-		{
-			var hash = 0, i, chr;
-			if (str.length === 0) return hash;
-			for (i = 0; i < str.length; i++) {
-			chr   = str.charCodeAt(i);
-			hash  = ((hash << 5) - hash) + chr;
-			hash |= 0; // Convert to 32bit integer
-			}
-			return hash;
-		}
 		window.onload = function()
 		{
 			var query = parseQuery( location.search );
@@ -301,8 +287,8 @@ echo basename( $path_parts["dirname"] );
 				{
 					row = emptyrow();
 					row.span.innerText = str;
+					container.appendChild( row );
 				}
-				container.appendChild( row );
 				item_cache[ str ] = row;
 				return row;
 			}
@@ -337,10 +323,12 @@ echo basename( $path_parts["dirname"] );
 			
 			function sortList()
 			{
-				var tmp = ALL( "div.item:not(.hidden)", container );
+				var tmp = ALL( "div.item:not(.hidden):not(.strike)", container );
 				tmp.sort( sortItems ).forEach(
 					function( v ) { container.appendChild( v ); }
 				);
+				ALL( "div.item.strike:not(.hidden)", container )
+					.forEach( o => container.appendChild( o ) );
 			}
 			
 			function isEmpty( obj )
@@ -370,7 +358,7 @@ echo basename( $path_parts["dirname"] );
 					data[ name ][ "state" ]
 						.split( ' ' )
 						.filter( keep_hidden_active_strike )
-						.forEach( function( v ) { i.classList.add( v ); } );
+						.forEach( v => i.classList.add( v ) );
 				}
 				
 				sortList();
@@ -383,19 +371,33 @@ echo basename( $path_parts["dirname"] );
 
 				for_key_value(
 					data[ "items" ],
-					function( k, v ) { complete[ k ] = v; }
+					( k, v ) => complete[ k ] = v
 				);
 
 				currentData.set( complete );
-									
+				
+				var datalist = ONE("#input-field");
+				var options = ALL("#input-field>*");
+				
+				for_key_value(
+					complete,
+					(k,v) => {
+						if ( !options.find( e => e.value == k ) )
+						{
+							var opt = document.createElement( "option" );
+							opt.value = k;
+							datalist.appendChild( opt );
+						}
+					}
+				);
+				
 				if ( !isEmpty( data.errors ) )
 				{
 					console.log( data.errors );
 				}
 				fillPage( diff );
-
 				
-				ALL(".unsaved").forEach( function( o ) { o.classList.remove( "unsaved" ); } );
+				ALL(".unsaved").forEach( o => o.classList.remove( "unsaved" ) );
 			}
 			
 			function getItemsFromPage()
@@ -554,7 +556,8 @@ echo basename( $path_parts["dirname"] );
 					);
 					
 					var obj = t;
-					start_touch = new Timer( 1500,
+					start_touch = new Timer(
+						1000,
 						{
 							"timeout": function( o )
 							{
@@ -581,14 +584,14 @@ echo basename( $path_parts["dirname"] );
 				}
 			}
 			
-			var valid_click = true;
+			var start_press = 0;
 			
 			on( document,
 				"onmousedown",
 				".item",
 				( e, obj ) =>
 				{
-					valid_click = true;
+					start_press = e.timeStamp;
 					long_press( obj );
 				}
 			)
@@ -605,13 +608,10 @@ echo basename( $path_parts["dirname"] );
 			on( document,
 				"onmousemove",
 				".item",
-				() =>
+				e =>
 				{
-					if ( valid_click )
-					{
-						valid_click = false;
-					}
-			   }
+					start_press = 0;
+				}
 			)
 			
 			on( document,
@@ -620,7 +620,7 @@ echo basename( $path_parts["dirname"] );
 				function( e, obj )
 				{
 					input.blur();
-					if ( valid_click )
+					if ( e.timeStamp - start_press < 100 )
 					{
 						toggle_row( obj );
 					}
@@ -641,66 +641,9 @@ echo basename( $path_parts["dirname"] );
 				}
 			}
 			
-			function findMatching( str )
-			{
-				var result = [];
-				for ( var i in getItemsFromPage() )
-				{
-					if ( i.length > str.length && i.lastIndexOf( str, str.length ) === 0 )
-					{
-						result.push( i );
-					}
-				}
-				return result;
-			}
-			
-			function byLength( a, b )
-			{
-				return a.length > b.length;
-			}
-			
-			function sameSize( len )
-			{
-				return function( a ) { return a.length === len; };
-			}
-			
-			function suggest( str )
-			{
-				var i = input;
-				var start = i.value.length;
-				i.value = str;
-				i.setSelectionRange( start, str.length );
-				i.focus();
-			}
-			
-			var nosuggest = false;
-			
-			input.onkeydown = function( e )
-			{
-				switch ( e.keyCode )
-				{
-					case 8: // backspace
-					case 46: // delete
-						nosuggest = true;
-						break;
-					default:
-						nosuggest = false;
-				}
-			}
-			
-			input.oninput = function( e )
+			input.oninput = function()
 			{
 				this.value = this.value.toLowerCase();
-				if ( nosuggest ) return;
-				var str = this.value;
-				if ( !str.length ) return;
-				var matches = findMatching( str ).sort( byLength );
-				if ( !matches.length ) return;
-				matches = matches.filter( sameSize( matches[ 0 ].length ) );
-				if ( matches.length === 1 )
-				{
-					suggest( matches[ 0 ] );
-				}
 			}
 			
 			document.onvisibilitychange = syncIfNeeded;
@@ -712,7 +655,9 @@ echo basename( $path_parts["dirname"] );
 		</script>
 	</head>
 	<body class="customfont noselect">
-		<input class="customfont" name="item" type="text" />
+		<input class="customfont" name="item" type="text" list="input-field" />
+		<datalist id="input-field">
+		</datalist>
 		<div id="items">
 			<div id="scrollbox">
 			</div>

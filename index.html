@@ -244,6 +244,7 @@
 		}
 		window.onload = function()
 		{
+			document.title = location.pathname.split( '/' ).filter( i => i ).pop();
 			var query = parseQuery( location.search );
 			var currentData = new LocalData();
 			var container = ONE( "#scrollbox" );

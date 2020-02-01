@@ -581,36 +581,53 @@ echo basename( $path_parts["dirname"] );
 				}
 			}
 			
+			var valid_click = true;
+			
 			on( document,
-				"ontouchstart",
+				"onmousedown",
 				".item",
-				function( e, obj )
+				( e, obj ) =>
 				{
-					input.blur();
-					start_touch = new Timer( 100,
-						{
-							"timeout": long_press,
-							"cancel": toggle_row
-						},
-						obj
-					)
+					valid_click = true;
+					long_press( obj );
 				}
-			)
-			
-			document.onmousedown = document.ontouchstart;
-			
-			on( document,
-				"ontouchmove",
-				"#scrollbox",
-				function(){ start_touch.abort(); }
 			)
 			
 			on( document,
 				"onmouseup",
-				null,
-				function(){ start_touch.cancel() }
-			);
+				".item",
+				( e, obj ) =>
+				{
+					start_touch.abort();
+				}
+			)
 			
+			on( document,
+				"onmousemove",
+				".item",
+				() =>
+				{
+					if ( valid_click )
+					{
+						valid_click = false;
+					}
+			   }
+			)
+			
+			on( document,
+				"onclick",
+				".item",
+				function( e, obj )
+				{
+					input.blur();
+					if ( valid_click )
+					{
+						toggle_row( obj );
+					}
+				}
+			)
+			
+			document.ontouchstart = document.onmousedown;
 			document.ontouchend = document.onmouseup;
 			
 			document.onkeyup = function( e )
@@ -685,17 +702,6 @@ echo basename( $path_parts["dirname"] );
 					suggest( matches[ 0 ] );
 				}
 			}
-			
-			input.ontouchstart = function( e )
-			{
-				if ( document.activeElement == this )
-				{
-					this.blur();
-					e.preventDefault();
-				}
-			}
-			
-			input.onmousedown = input.ontouchstart;
 			
 			document.onvisibilitychange = syncIfNeeded;
 			

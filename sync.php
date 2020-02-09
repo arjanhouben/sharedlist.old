@@ -18,27 +18,6 @@ if ( !file_exists( "items" ) )
 	mkdir( "items" );
 }
 
-if ( $dh = opendir( "items" ) )
-{
-	while ( ( $file = readdir( $dh ) ) !== false )
-	{
-		$path = "items/" . $file;
-		if ( is_file( $path ) )
-		{
-			$server_data[ $file ] = json_decode( file_get_contents( $path ), true );
-			if ( $server_data[ $file ] )
-			{
-				if ( !array_key_exists( "modified", $server_data[ $file ] ) )
-				{
-					$server_data[ $file ][ "modified" ] = 0;
-				}
-			}
-		}
-	}
-	
-	closedir( $dh );
-}
-
 $lastModified = -1;
 
 if ( $request )
@@ -47,7 +26,34 @@ if ( $request )
 	{
 		$lastModified = floatval( $request[ "lastModified" ] );
 	}
+}
+		
+if ( $dh = opendir( "items" ) )
+{
+	while ( ( $file = readdir( $dh ) ) !== false )
+	{
+		$path = "items/" . $file;
+		if ( is_file( $path ) )
+		{
+			if ( filemtime( $path ) > $lastModified )
+			{
+				$server_data[ $file ] = json_decode( file_get_contents( $path ), true );
+				if ( $server_data[ $file ] )
+				{
+					if ( !array_key_exists( "modified", $server_data[ $file ] ) )
+					{
+						$server_data[ $file ][ "modified" ] = 0;
+					}
+				}
+			}
+		}
+	}
+	
+	closedir( $dh );
+}
 
+if ( $request )
+{
 	if ( array_key_exists( "items", $request ) )
 	{
 		$currentModificationTime = microtime( true );
@@ -56,22 +62,21 @@ if ( $request )
 		{
 			if ( is_array( $item ) )
 			{
-				$current = &$server_data[ $name ];
+				$current_server_entry = &$server_data[ $name ];
 				
-				if ( $current )
+				if ( $current_server_entry )
 				{
-					
-					if ( $current[ "state" ] == $item[ "state" ] )
+					if ( $current_server_entry[ "state" ] == $item[ "state" ] )
 					{
-						$error[ $name ] = "redundant change, state remains at " . $current[ "state" ];
+						$error[ $name ] = "redundant change, state remains at " . $current_server_entry[ "state" ];
 						continue;
 					}
 				
-					if ( array_key_exists( "modified", $current ) )
+					if ( array_key_exists( "modified", $current_server_entry ) )
 					{
-						if ( $current[ "modified" ] != $item[ "modified" ] )
+						if ( $current_server_entry[ "modified" ] != $item[ "modified" ] )
 						{
-							$error[ $name ] = "could not be saved, modified " . $current[ "modified" ] . " differs from " . $item[ "modified" ];
+							$error[ $name ] = "could not be saved, modified " . $current_server_entry[ "modified" ] . " differs from " . $item[ "modified" ];
 							continue;
 						}
 					}
@@ -79,29 +84,18 @@ if ( $request )
 				
 				$path = "items/" . $name;
 				
-				$current[ "modified" ] = $currentModificationTime;
+				$current_server_entry[ "modified" ] = $currentModificationTime;
 			
-				$current[ "state" ] = $item[ "state" ];
+				$current_server_entry[ "state" ] = $item[ "state" ];
 				
-				if ( !array_key_exists( "usecount", $current ) )
+				if ( !array_key_exists( "usecount", $current_server_entry ) )
 				{
-					$current[ "usecount" ] = 0;
+					$current_server_entry[ "usecount" ] = 0;
 				}
-				$current[ "usecount" ] = intval( $current[ "usecount" ] ) + 1;
+				$current_server_entry[ "usecount" ] = intval( $current_server_entry[ "usecount" ] ) + 1;
 				
-				file_put_contents( $path, json_encode( $current ) );
+				file_put_contents( $path, json_encode( $current_server_entry ) );
 			}
-		}
-	}
-}
-
-foreach( $server_data as $name => &$item )
-{
-	if ( $item[ "modified" ] <= $lastModified )
-	{
-		if ( !array_key_exists( $name, $error ) )
-		{
-			unset( $server_data[ $name ] );
 		}
 	}
 }

@@ -76,7 +76,7 @@
 			width: 100%;
 			overflow: hidden;
 			white-space: nowrap;
-			transition: width 1.5s ease-in-out, background-color 0.2s;
+			transition: width 1s ease-in-out, background-color 0.2s;
 		}
 		.item > span
 		{
@@ -107,8 +107,9 @@
 		function getLastModified( items )
 		{
 			var m = 0;
-			for_key_value( items,
-				function( k, v )
+			for_key_value(
+				items,
+				( k, v ) =>
 				{
 					if ( v && v.modified > m )
 					{
@@ -325,9 +326,8 @@
 			function sortList()
 			{
 				var tmp = ALL( "div.item:not(.hidden):not(.strike)", container );
-				tmp.sort( sortItems ).forEach(
-					function( v ) { container.appendChild( v ); }
-				);
+				tmp.sort( sortItems )
+					.forEach( v => container.appendChild( v ) );
 				ALL( "div.item.strike:not(.hidden)", container )
 					.forEach( o => container.appendChild( o ) );
 			}
@@ -337,13 +337,14 @@
 				return Object.keys( obj ).length === 0;
 			}
 			
-			function keep_hidden_active_strike( v )
+			function is_name_used_for_sync( v )
 			{
 				switch( v )
 				{
 					case "hidden":
 					case "active":
 					case "strike":
+					case "discard":
 						return true;
 					default:
 						return false;
@@ -352,14 +353,15 @@
 			
 			function fillPage( data )
 			{
-				for ( var name in data )
+				for ( let name in data )
 				{
-					var i = get_or_create_item( name );
-					i.classList.remove( "hidden", "strike" );
-					data[ name ][ "state" ]
+					let state = data[ name ].state;
+					let item = get_or_create_item( name );
+					item.classList.remove( "hidden", "strike" );
+					state
 						.split( ' ' )
-						.filter( keep_hidden_active_strike )
-						.forEach( v => i.classList.add( v ) );
+						.filter( is_name_used_for_sync )
+						.forEach( v => item.classList.add( v ) );
 				}
 				
 				sortList();
@@ -385,9 +387,12 @@
 					(k,v) => {
 						if ( !options.find( e => e.value == k ) )
 						{
-							var opt = document.createElement( "option" );
-							opt.value = k;
-							datalist.appendChild( opt );
+							if ( !v.state.match( /\bdiscard\b/ ) )
+							{
+								var opt = document.createElement( "option" );
+								opt.value = k;
+								datalist.appendChild( opt );
+							}
 						}
 					}
 				);
@@ -401,11 +406,20 @@
 				ALL(".unsaved").forEach( o => o.classList.remove( "unsaved" ) );
 			}
 			
+			function filter( collection, filter_function )
+			{
+				return Array.prototype.filter.call(
+					collection,
+					filter_function
+				);
+			}
+			
 			function getItemsFromPage()
 			{
 				var cache = currentData.get();
 				var items = {};
-				for_key_value( item_cache,
+				for_key_value(
+					item_cache,
 					function( k, v )
 					{
 						var m = 0;
@@ -418,7 +432,7 @@
 						}
 						items[ k ] = {
 							"modified": m,
-							"state": Array.prototype.filter.call( v.classList, keep_hidden_active_strike ).join( " " )
+							"state": filter( v.classList, is_name_used_for_sync ).join( " " )
 						}
 					}
 				)
@@ -437,7 +451,8 @@
 				{
 					return new_value;
 				}
-				for_key_value( new_value,
+				for_key_value(
+					new_value,
 					function( k, v )
 					{
 						if ( v )
@@ -510,8 +525,7 @@
 				if ( str.length )
 				{
 					var row = get_or_create_item( str );
-					row.classList.remove( "hidden" );
-					row.classList.remove( "strike" );
+					[ "hidden", "strike", "discard" ].forEach( classname => row.classList.remove( classname ) );
 				}
 			}
 			
@@ -545,44 +559,56 @@
 			
 			function long_press( t )
 			{
+				let collection;
+				
 				if ( t.matches( ".strike" ) )
 				{
-					var collection = ALL(":not(.hidden).strike");
-					
-					for_all_in(
-						collection,
-						[ "classList" ],
-						[ "add" ],
-						"remove_all"
-					);
-					
-					var obj = t;
-					start_touch = new Timer(
-						1000,
-						{
-							"timeout": function( o )
-							{
-								for_all_in(
-									collection,
-									[ "classList" ],
-									"add",
-									"hidden"
-								);
-								syncIfNeeded();
-							},
-							"always": function( o )
-							{
-								for_all_in(
-									collection,
-									[ "classList" ],
-									"remove",
-									"remove_all"
-								);
-							}
-						},
-						obj
-					)
+					collection = ALL(":not(.hidden).strike");
 				}
+				else
+				{
+					collection = [ t ];
+				}
+				
+				for_all_in(
+					collection,
+					[ "classList" ],
+					[ "add" ],
+					"remove_all"
+				);
+				
+				var obj = t;
+				start_touch = new Timer(
+					1000,
+					{
+						"timeout": function( o )
+						{
+							for_all_in(
+								collection,
+								[ "classList" ],
+								"add",
+								"hidden",
+								"discard"
+							);
+							collection.forEach(
+								obj => {
+									ONE("option[value='" + ONE("span",obj).innerText + "']").remove();
+								}
+							)
+							syncIfNeeded();
+						},
+						"always": function( o )
+						{
+							for_all_in(
+								collection,
+								[ "classList" ],
+								"remove",
+								"remove_all"
+							);
+						}
+					},
+					obj
+				);
 			}
 			
 			var start_press = 0;
@@ -600,19 +626,13 @@
 			on( document,
 				"onmouseup",
 				".item",
-				( e, obj ) =>
-				{
-					start_touch.abort();
-				}
+				( e ) => { start_touch.abort(); }
 			)
 			
 			on( document,
 				"onmousemove",
 				".item",
-				e =>
-				{
-					start_press = 0;
-				}
+				( e ) => { start_press = 0; }
 			)
 			
 			on( document,

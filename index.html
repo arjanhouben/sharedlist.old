@@ -367,6 +367,14 @@
 				sortList();
 			}
 			
+			function sort_by_usecount( collection, func )
+			{
+				let result = [];
+				for_key_value( collection, ( k,v ) => result.push( { ...{"name":k}, ...v } ) );
+				result.forEach( i => i.usecount = i.usecount || 0 );
+				return result.sort( (a,b) => a.usecount - b.usecount );
+			}
+			
 			function updatePage( data )
 			{
 				var complete = currentData.get();
@@ -389,13 +397,29 @@
 						{
 							if ( !v.state.match( /\bdiscard\b/ ) )
 							{
-								var opt = document.createElement( "option" );
+								let opt = document.createElement( "option" );
 								opt.value = k;
 								datalist.appendChild( opt );
 							}
 						}
 					}
 				);
+				
+				let sorted = sort_by_usecount( complete ).reverse();
+				let a = [], b = [];
+				ALL("option").forEach( i => a.push( i.value ) );
+				sorted.forEach( i => b.push( i.name ) );
+				if ( a != b )
+				{
+					let fragment = document.createDocumentFragment();
+					sorted.forEach(
+						i => {
+							let opt = ONE("option[value=\"" + i.name + "\"]");
+							if ( opt ) fragment.appendChild( opt );
+						}
+					);
+					datalist.appendChild( fragment );
+				}
 				
 				if ( !isEmpty( data.errors ) )
 				{

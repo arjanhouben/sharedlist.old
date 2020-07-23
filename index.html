@@ -579,8 +579,11 @@
 				{
 					get_or_create_item( input.value.trim() );
 					let item = items.get( input.value.trim() );
-					item.remove_strike();
-					item.unhide();
+					if ( item )
+					{
+						item.remove_strike();
+						item.unhide();
+					}
 					input.value = "";
 					syncIfNeeded();
 				}

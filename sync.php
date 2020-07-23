@@ -77,31 +77,41 @@ if ( $request )
 						}
 					}
 				}
-			}
-			else
-			{
-				$current_server_entry[ "usecount" ] = 0;
-			}
-			
-			$item[ "modified" ] = $currentModificationTime;
-			$item[ "usecount" ] = intval( $current_server_entry[ "usecount" ] ) + 1;
-			
-			if ( $db->exec(
-					"UPDATE items SET modified = \"" . $item[ "modified" ] .
-					"\", state = \"" . $item[ "state" ] .
-					"\", usecount = \"" . $item[ "usecount" ] . "\"" . $WHERE_CLAUSE
+				
+				$item[ "modified" ] = $currentModificationTime;
+				$item[ "usecount" ] = intval( $current_server_entry[ "usecount" ] ) + 1;
+				
+				if ( $db->exec(
+						"UPDATE items SET modified = \"" . $item[ "modified" ] .
+						"\", state = \"" . $item[ "state" ] .
+						"\", usecount = \"" . $item[ "usecount" ] . "\"" . $WHERE_CLAUSE
+						)
 					)
-				)
-			{
-				$result[ "items" ][ $name ] = $item;
+				{
+					$result[ "items" ][ $name ] = $item;
+				}
+				else
+				{
+					$result[ "items" ][ $name ] = $current_server_entry;
+					$error[ $name ] = "could not be saved, DB did not accept change: "
+						. $db->lastErrorCode()
+						. " -> "
+						. $db->lastErrorMsg();
+				}
 			}
 			else
 			{
-				$result[ "items" ][ $name ] = $current_server_entry;
-				$error[ $name ] = "could not be saved, DB did not accept change: "
-					. $db->lastErrorCode()
-					. " -> "
-					. $db->lastErrorMsg();
+				if ( $db->exec(
+						"INSERT INTO items ( name, modified, usecount, state ) " .
+						"VALUES ( \"" . $name . "\"," .
+						" \"" . $item[ "modified" ] . "\"," .
+						" \"" . $item[ "usecount" ] . "\"," .
+						" \"" . $item[ "state" ] . "\" )"
+						)
+					)
+				{
+					$result[ "items" ][ $name ] = $item;
+				}
 			}
 		}
 	}

@@ -11,14 +11,6 @@
 			background-color: #789;
 			overflow: hidden;
 			height: 100%;
-			width: 100%;
-			margin: 5px;
-			position: absolute;
-			box-sizing: border-box;
-		}
-		html, body > *
-		{
-			position: absolute;
 		}
 		#items
 		{
@@ -43,6 +35,7 @@
 			left: 0;
 			right: 0;
 			height: 24pt;
+			width: 100%;
 		}
 		#strike > div > span
 		{
@@ -99,21 +92,6 @@
 				}
 			}
 		}
-		function getLastModified( items )
-		{
-			let m = 0;
-			for_key_value(
-				items,
-				( k, v ) =>
-				{
-					if ( v && v.modified > m )
-					{
-						m = v.modified;
-					}
-				}
-			);
-			return m;
-		}
 		function LocalData()
 		{
 			this.get = function()
@@ -128,13 +106,6 @@
 			this.set = function( data )
 			{
 				localStorage[ window.location.host + window.location.pathname ] = JSON.stringify( data );
-			}
-		}
-		function bind( f, t )
-		{
-			let args = Array.prototype.slice.call( arguments, 2 );
-			return function(){
-				f.apply( t, args );
 			}
 		}
 		function parseQuery( query )
@@ -155,10 +126,8 @@
 			if ( !obj ) obj = document;
 			return Array.prototype.slice.call( obj.querySelectorAll.call( obj, args ) );
 		}
-		function ONE( args, obj )
-		{
-			if ( !obj ) obj = document;
-			return obj.querySelector.apply( obj, [ args ] );
+		const ONE = ( q, c ) => {
+			return ( c ? c : document ).querySelector( q );
 		}
 		function emptyrow()
 		{
@@ -169,29 +138,36 @@
 			div.span = span;
 			return div;
 		}
-		function on( obj, ev, selector, f )
+		function on( obj, events, selector, f )
 		{
-			let old = obj[ ev ] || function() {};
-			obj[ ev ] = function( e )
-			{
-				old( e );
-				if ( selector )
-				{
-					let t = e.target;
-					while ( t && t !== document )
-					{
-						if ( t.matches( selector ) )
+			events.forEach( ev => {
+					obj.addEventListener(
+						ev,
+						function( e )
 						{
-							return f.call( t, e, t );
+							if ( selector )
+							{
+								let t = e.target;
+								while ( t && t !== document )
+								{
+									if ( t.matches( selector ) )
+									{
+										return f.call( t, e, t );
+									}
+									t = t.parentNode;
+								}
+							}
+							else
+							{
+								return f.call( e.target, e, e.target );
+							}
+						},
+						{
+							"passive": true
 						}
-						t = t.parentNode;
-					}
+					)
 				}
-				else
-				{
-					return f.call( e.target, e, e.target );
-				}
-			}
+			)
 		}
 		function Timer( duration, callbacks )
 		{
@@ -228,8 +204,17 @@
 			let currentData = new LocalData();
 			let container = ONE( "#scrollbox" );
 			let item_cache = {};
+			let lastModified = -1;
 			let hidden_items = document.createDocumentFragment();
-			let option_fragment = document.createDocumentFragment();
+			let items = (() => {
+				let data = {};
+				return {
+					get : ( name ) => { return data[ name ] },
+					set : ( name, value ) => { data[ name ] = value; }
+				};
+			})();
+			let last_synchronized = new Date();
+			let changed_items = [];
 			
 			if ( query.hasOwnProperty( "reset" ) )
 			{
@@ -241,18 +226,9 @@
 				ALL("html,body").forEach( o => o.style.backgroundColor = query[ "bg" ] );
 			}
 			
-			function getRow( item )
-			{
-				while ( !item.classList.contains( "item" ) )
-				{
-					item = item.parentNode;
-				}
-				return item;
-			}
-			
 			function insertInActive( elem, context )
 			{
-				elem.classList.remove( "hidden", "strike" );
+				elem.classList.remove( "hidden" );
 				const active = ONE("#active", context);
 				let str = elem.firstChild.innerText;
 				let items = active.children;
@@ -267,11 +243,17 @@
 				active.appendChild( elem );
 			}
 			
-			function create_row( str, context )
+			function create_option( str )
+			{
+				let option = document.createElement( "option" );
+				option.value = str;
+				return option;
+			}
+			
+			function create_row( str )
 			{
 				let row = emptyrow();
 				row.span.innerText = str;
-				insertInActive( row, context );
 				item_cache[ str ] = row;
 				return row;
 			}
@@ -291,42 +273,122 @@
 				return Object.keys( obj ).length === 0;
 			}
 			
-			function is_name_used_for_sync( v )
+			function insert_option_sorted_by_usecount( option )
 			{
-				switch( v )
+				let usecount = parseInt( option.getAttribute( "usecount" ) );
+				let options = ALL("#input-field>option");
+				for ( let i = 0; i < options.length; ++i )
 				{
-					case "hidden":
-					case "active":
-					case "strike":
-					case "discard":
-						return true;
-					default:
-						return false;
+					let obj = options[ i ];
+					if ( parseInt( obj.getAttribute( "usecount" ) ) < usecount )
+					{
+						obj.parentNode.insertBefore( option, obj );
+						return;
+					}
 				}
+				ONE("#input-field").appendChild( option );
 			}
-			
+
 			function fillPage( data )
 			{
-				let fragment = document.createDocumentFragment();
 				let scroll_position = ONE("#scrollbox").scrollTop;
-				fragment.appendChild( ONE("#items") );
 				
 				for ( let name in data )
 				{
-					let state = data[ name ].state;
-					let item = get_or_create_item( name, fragment );
-					item.classList.remove( "hidden", "strike" );
-					state
-						.split( ' ' )
-						.filter( is_name_used_for_sync )
-						.forEach( v => item.classList.add( v ) );
+					if ( !items.get( name ) )
+					{
+						let get_data = () => currentData.get()[ name ];
+						let row = create_row( name );
+						let option = create_option( name );
+						option.setAttribute( "usecount", get_data().usecount );
+						insert_option_sorted_by_usecount( option );
+						let state = get_data().state.split( /\s+/ ).filter(Boolean);
+						let add_to_state = ( v ) => {
+							if ( !state.includes( v ) ) state.push( v );
+						}
+						let remove_from_state = ( v ) => {
+							state = state.filter( str => str != v );
+						}
+						let remove_strike = () => {
+							insertInActive( row );
+							remove_from_state( "strike" );
+						}
+						let add_strike = () => {
+							push_front( ONE("#strike"), row );
+							add_to_state( "strike" );
+						}
+						items.set(
+							name,
+							{
+								toggle_strike : () =>
+								{
+									let data = get_data();
+									if ( row.parentNode.id == "strike" ) remove_strike()
+									else add_strike();
+									row.classList.add( "unsaved" );
+									changed_items.push( name );
+									syncIfNeeded();
+								},
+								hide : () =>
+								{
+									add_to_state( "hidden" );
+									changed_items.push( name );
+								},
+								unhide : () =>
+								{
+									remove_from_state( "hidden" );
+									changed_items.push( name );
+								},
+								remove_strike : () =>
+								{
+									remove_strike();
+									changed_items.push( name );
+								},
+								as_item : () =>
+								{
+									return {
+										"modified": get_data().modified,
+										"state": state.join( ' ' )
+									};
+								},
+								update : ( updated_values ) => {
+									if ( state != updated_values.state )
+									{
+										if ( updated_values.state.match( /strike/ ) )
+										{
+											add_strike();
+										}
+										else
+										{
+											remove_strike();
+										}
+									}
+									changed_items = changed_items.filter( str => str != name );
+									option.setAttribute( "usecount", updated_values.usecount );
+									insert_option_sorted_by_usecount( option );
+									row.classList.remove( "unsaved" );
+								}
+							}
+						);
+						if ( state.includes( "hidden" ) )
+						{
+							hidden_items.appendChild( row );
+						}
+						else if ( state.includes( "strike" ) )
+						{
+							ONE("#strike").appendChild( row );
+						}
+						else
+						{
+							insertInActive( row );
+						}
+						if ( data[ name ].modified > lastModified )
+						{
+							lastModified = data[ name ].modified;
+						}
+					}
 				}
-				ALL(".hidden",fragment).forEach( i => hidden_items.appendChild( i ) );
-				let strike = ONE("#strike",fragment);
-				ALL(".strike",fragment).forEach( i => strike.appendChild( i ) );
-				ONE("body").appendChild(fragment);
 				ONE("#scrollbox").scrollTop = scroll_position;
-				ONE("#input-field").appendChild( option_fragment );
 			}
 			
 			function sort_by_usecount( collection, func )
@@ -338,118 +400,29 @@
 				return result;
 			}
 			
-			function get_or_create_option( name )
-			{
-				let opt = ONE("option[value=\"" + name + "\"]") || ONE("option[value=\"" + name + "\"]",option_fragment);
-				if ( !opt )
-				{
-					opt = document.createElement( "option" );
-					opt.value = name;
-				}
-				return opt;
-			}
-
-			function updateOptionOrder( items_in_order )
-			{
-				let datalist = ONE("#input-field");
-				datalist.appendChild( option_fragment );
-				option_fragment.appendChild( datalist );
-				items_in_order.forEach(
-					(k,v) => {
-						datalist.appendChild( get_or_create_option( k.name ) )
-						}
-				)
-				ONE("body").appendChild( datalist );
-			}
-			
 			function updatePage( data )
 			{
-				let complete = currentData.get();
-				let diff = get_new_changes( complete, data[ "items" ] );
+				let current_known_data = currentData.get();
 				for_key_value(
 					data[ "items" ],
-					( k, v ) => complete[ k ] = v
-				);
-
-				currentData.set( complete );
-				
-				updateOptionOrder( sort_by_usecount( complete ).reverse()  );
+					( k, v ) => {
+						current_known_data[ k ] = v;
+						let item = items.get( k );
+						if ( item ) item.update( v );
+					}
+				)
+				currentData.set( current_known_data );
+				fillPage( current_known_data );
 				
 				if ( !isEmpty( data.errors ) )
 				{
+					if ( data.errors.modified && data.errors.modified > lastModified )
+					{
+						// we have missed updates from the server, retreive them now
+						sync();
+					}
 					console.log( data.errors );
 				}
-				fillPage( diff );
-				
-				ALL(".unsaved").forEach( o => o.classList.remove( "unsaved" ) );
-			}
-			
-			function filter( collection, filter_function )
-			{
-				return Array.prototype.filter.call(
-					collection,
-					filter_function
-				);
-			}
-			
-			function getItemsFromPage()
-			{
-				let cache = currentData.get();
-				let items = {};
-				for_key_value(
-					item_cache,
-					function( k, v )
-					{
-						let m = 0;
-						if( cache.hasOwnProperty( k ) && cache[ k ] )
-						{
-							if ( cache[ k ].hasOwnProperty( "modified" ) )
-							{
-								m = cache[ k ].modified;
-							}
-						}
-						items[ k ] = {
-							"modified": m,
-							"state": filter( v.classList, is_name_used_for_sync ).join( " " )
-						}
-					}
-				)
-				return items;
-			}
-			
-			function itemDifferent( a, b )
-			{
-				return !a || !b || ( a[ "state" ] !== b[ "state" ] );
-			}
-		
-			function get_new_changes( old_value, new_value )
-			{
-				let result = {};
-				if ( !old_value )
-				{
-					return new_value;
-				}
-				for_key_value(
-					new_value,
-					function( k, v )
-					{
-						if ( v )
-						{
-							if ( old_value.hasOwnProperty( k ) )
-							{
-								if ( itemDifferent( old_value[ k ], v ) )
-								{
-									result[ k ] = v;
-								}
-							}
-							else
-							{
-								result[ k ] = v;
-							}
-						}
-					}
-				)
-				return result;
 			}
 			
 			function post( url, data, complete )
@@ -472,25 +445,15 @@
 			{
 				if ( navigator.onLine )
 				{
-					let lastServerData = currentData.get();
-					
-					let items_from_page = getItemsFromPage();
-					let diff = get_new_changes(
-						lastServerData,
-						items_from_page
+					let diff = {
+						"items": {},
+						"lastModified": lastModified
+					};
+					changed_items.forEach(
+						name => {
+							diff[ "items" ][ name ] = items.get( name ).as_item();
+						}
 					);
-					
-					if ( !isEmpty( diff ) )
-					{
-						diff = { "items" : diff };
-					}
-					
-					let lastModified = getLastModified( lastServerData );
-					if ( lastModified )
-					{
-						diff[ "lastModified" ] = lastModified;
-					}
-					
 					post(
 						"sync.php",
 						diff,
@@ -499,25 +462,22 @@
 				}
 			}
 			
-			function addRow( str )
-			{
-				if ( str.length )
-				{
-					let row = get_or_create_item( str );
-					insertInActive( row );
-				}
-			}
-			
 			let input = ONE("input[name=item]");
 			
-			let sync_timeout = null;
+			let timeout_id = 0;
 			
 			function syncIfNeeded()
 			{
-				// wait a bit in case the press that caused this update also
-				// triggered a real sync
-				clearTimeout( sync_timeout );
-				sync_timeout = setTimeout( sync, 1000 );
+				let now = new Date();
+				let diff = now - last_synchronized;
+				if ( diff < 1000 )
+				{
+					clearTimeout( timeout_id );
+					timeout_id = setTimeout( syncIfNeeded, diff );
+					return;
+				}
+				last_synchronized = now;
+				setTimeout( sync, 16 );
 			}
 			
 			function push_front( where, what )
@@ -526,23 +486,6 @@
 			}
 			
 			let start_touch = new Timer();
-			
-			function toggle_row( t )
-			{
-				let row = getRow( t );
-				let parent_type = row.parentNode.id;
-				if ( parent_type == "strike" )
-				{
-					insertInActive( row );
-				}
-				else
-				{
-					row.classList.add( "strike" );
-					push_front( ONE("#strike"), row );
-				}
-				row.classList.add( "unsaved" );
-				syncIfNeeded();
-			}
 			
 			function long_press( t )
 			{
@@ -565,6 +508,7 @@
 						"timeout": function( o )
 						{
 							collection.forEach( o => {
+									items.get( ONE("span",o).innerText ).hide()
 									o.classList.add( "hidden", "discard" );
 									hidden_items.appendChild( o );
 								}
@@ -580,7 +524,7 @@
 			let start_press = 0;
 			
 			on( document,
-				"onmousedown",
+				[ "touchstart", "mousedown" ],
 				".item",
 				( e, obj ) =>
 				{
@@ -590,28 +534,40 @@
 			)
 			
 			on( document,
-				"onmouseup",
+				[ "touchend", "mouseup" ],
 				".item",
 				( e ) => { start_touch.abort(); }
 			)
 			
 			on( document,
-				"onmousemove",
+				[ "mousemove" ],
 				".item",
 				( e ) => { start_press = 0; }
 			)
 			
 			on( document,
-				"onclick",
+				[ "click" ],
 				".item",
 				function( e, obj )
 				{
 					input.blur();
 					if ( e.timeStamp - start_press < 100 )
 					{
-						toggle_row( obj );
+						items.get( ONE("span",obj).innerText ).toggle_strike();
 					}
 				}
+			)
+			
+			on( document,
+				[ "mousemove" ],
+				null,
+				syncIfNeeded
+			)
+			
+			on( document,
+				[ "touchstart", "mousedown" ],
+				null,
+				syncIfNeeded
 			)
 			
 			document.ontouchstart = document.onmousedown;
@@ -621,7 +577,10 @@
 			{
 				if ( e.keyCode == 13 )
 				{
-					addRow( input.value.trim() );
+					get_or_create_item( input.value.trim() );
+					let item = items.get( input.value.trim() );
+					item.remove_strike();
+					item.unhide();
 					input.value = "";
 					syncIfNeeded();
 				}

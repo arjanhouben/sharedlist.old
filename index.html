@@ -470,7 +470,11 @@
 					};
 					changed_items.forEach(
 						name => {
-							diff[ "items" ][ name ] = items.get( name ).as_item();
+							let item = items.get( name );
+							if ( item )
+							{
+								diff[ "items" ][ name ] = item.as_item();
+							}
 						}
 					);
 					post(

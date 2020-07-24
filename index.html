@@ -409,6 +409,29 @@
 				return result;
 			}
 			
+			function checksum( items )
+			{
+				let active = 0, strike = 0, hidden = 0;
+				for_key_value(
+					items,
+					( k, v ) => {
+						if ( v.state == "" )
+						{
+							++active;
+						}
+						else if ( v.state.match( /hidden/ ) )
+						{
+							++hidden;
+						}
+						else if ( v.state.match( /strike/ ) )
+						{
+							++strike;
+						}
+					}
+				)
+				return active + "." + strike + "." + hidden;
+			}
+			
 			function updatePage( data )
 			{
 				let current_known_data = currentData.get();
@@ -431,11 +454,11 @@
 						sync();
 					}
 					console.log( data.errors );
+					return;
 				}
 				
-				if ( data.check != lastModified )
+				if ( data.check != checksum( current_known_data ) )
 				{
-					console.log( "database out of sync with local page, make sure to sent all the data" );
 					for_key_value(
 						item_cache,
 						( k, v ) => changed_items.push( k )

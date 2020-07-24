@@ -70,6 +70,7 @@ if ( $request )
 								$current_server_entry[ "modified" ] .
 								" differs from " . $item[ "modified" ];
 							$error[ "modified" ] = $current_server_entry[ "modified" ];
+							$result[ "items" ][ $name ] = $current_server_entry;
 							continue;
 						}
 					}
@@ -114,12 +115,17 @@ if ( $request )
 	}
 }
 
-$sql_result = $db->query( "SELECT MAX(modified) from items" );
+$sql_result = $db->query( "SELECT COUNT(name) FROM items WHERE state LIKE '%hidden%'" );
+$number_hidden = $sql_result->fetchArray( SQLITE3_NUM )[ 0 ];
+
+$sql_result = $db->query( "SELECT COUNT(name) FROM items WHERE state LIKE '%strike%' AND NOT state LIKE '%hidden%'" );
+$number_strike = $sql_result->fetchArray( SQLITE3_NUM )[ 0 ];
+
+$sql_result = $db->query( "SELECT COUNT(name) FROM items WHERE state = ''" );
+$number_active = $sql_result->fetchArray( SQLITE3_NUM )[ 0 ];
 
 $result[ "errors" ] = $error;
-$result[ "check" ] = intval(
-	array_values( $sql_result->fetchArray( SQLITE3_ASSOC ) )[ 0 ]
-);
+$result[ "check" ] = $number_active . "." . $number_strike . "." . $number_hidden;
 echo json_encode( $result );
 
 ?>

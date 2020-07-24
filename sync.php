@@ -41,7 +41,7 @@ if ( $request )
 {
 	if ( array_key_exists( "items", $request ) )
 	{
-		$currentModificationTime = intval( microtime( true ) * 1e6 );
+		$currentModificationTime = intval( microtime( true ) * 1000 );
 
 		foreach( $request[ "items" ] as $name => &$item )
 		{

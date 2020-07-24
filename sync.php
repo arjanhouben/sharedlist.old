@@ -5,7 +5,7 @@ $result = array();
 $db = new SQLite3( "items/sqlite.db", SQLITE3_OPEN_READWRITE | SQLITE3_OPEN_CREATE );
 $request = array();
 
-$db->exec( "CREATE TABLE IF NOT EXISTS items ( name varchar(255), modified float, usecount int, state int )" );
+$db->exec( "CREATE TABLE IF NOT EXISTS items ( name varchar(255), modified int, usecount int, state int )" );
 
 if ( $_REQUEST )
 {
@@ -22,7 +22,7 @@ if ( $request )
 {
 	if ( array_key_exists( "lastModified", $request ) )
 	{
-		$lastModified = floatval( $request[ "lastModified" ] );
+		$lastModified = intval( $request[ "lastModified" ] );
 	}
 }
 
@@ -41,7 +41,7 @@ if ( $request )
 {
 	if ( array_key_exists( "items", $request ) )
 	{
-		$currentModificationTime = microtime( true );
+		$currentModificationTime = intval( microtime( true ) * 1e6 );
 
 		foreach( $request[ "items" ] as $name => &$item )
 		{
@@ -57,14 +57,11 @@ if ( $request )
 				if ( $current_server_entry[ "state" ] == $item[ "state" ] )
 				{
 					$error[ $name ] = "redundant change, state remains at " . $current_server_entry[ "state" ];
-					$item = $current_server_entry;
-					$result[ "items" ][ $name ] = $item;
-					continue;
 				}
 			
 				if ( array_key_exists( "modified", $current_server_entry ) )
 				{
-					if ( floatval( $current_server_entry[ "modified" ] ) > 0 )
+					if ( intval( $current_server_entry[ "modified" ] ) > 0 )
 					{
 						// bccomp returns 0 if values match
 						if ( bccomp( $current_server_entry[ "modified" ], $item[ "modified" ], 4 ) )
@@ -116,8 +113,13 @@ if ( $request )
 		}
 	}
 }
-	
+
+$sql_result = $db->query( "SELECT MAX(modified) from items" );
+
 $result[ "errors" ] = $error;
+$result[ "check" ] = intval(
+	array_values( $sql_result->fetchArray( SQLITE3_ASSOC ) )[ 0 ]
+);
 echo json_encode( $result );
 
 ?>

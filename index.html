@@ -204,7 +204,7 @@
 			let currentData = new LocalData();
 			let container = ONE( "#scrollbox" );
 			let item_cache = {};
-			let lastModified = -1;
+			let lastModified = 0;
 			let hidden_items = document.createDocumentFragment();
 			let items = (() => {
 				let data = {};
@@ -358,6 +358,11 @@
 										{
 											add_strike();
 										}
+										else if ( updated_values.state.match( /hidden/ ) )
+										{
+											add_to_state( "hidden" );
+											hidden_items.appendChild( row );
+										}
 										else
 										{
 											remove_strike();
@@ -367,6 +372,10 @@
 									option.setAttribute( "usecount", updated_values.usecount );
 									insert_option_sorted_by_usecount( option );
 									row.classList.remove( "unsaved" );
+									if ( updated_values.modified > lastModified )
+									{
+										lastModified = updated_values.modified;
+									}
 								}
 							}
 						);
@@ -422,6 +431,16 @@
 						sync();
 					}
 					console.log( data.errors );
+				}
+				
+				if ( data.check != lastModified )
+				{
+					console.log( "database out of sync with local page, make sure to sent all the data" );
+					for_key_value(
+						item_cache,
+						( k, v ) => changed_items.push( k )
+					);
+					sync();
 				}
 			}
 			

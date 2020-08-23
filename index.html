@@ -352,23 +352,30 @@
 									};
 								},
 								update : ( updated_values ) => {
-									if ( state != updated_values.state )
+									if ( updated_values.state.match( /hidden/ ) )
 									{
-										if ( updated_values.state.match( /strike/ ) )
+										add_to_state( "hidden" );
+										if ( !row.parentNode || row.parentNode.nodeType != 11 )
 										{
-											add_strike();
-										}
-										else if ( updated_values.state.match( /hidden/ ) )
-										{
-											add_to_state( "hidden" );
 											hidden_items.appendChild( row );
 										}
-										else
+									}
+									else if ( updated_values.state.match( /strike/ ) )
+									{
+										add_strike();
+										if ( !row.parentNode || row.parentNode.id != "strike" )
 										{
-											remove_strike();
+											push_front( ONE("#strike"), row );
 										}
 									}
-									changed_items = changed_items.filter( str => str != name );
+									else
+									{
+										state = [];
+										if ( !row.parentNode || row.parentNode.id != "active" )
+										{
+											insertInActive( row );
+										}
+									}
 									option.setAttribute( "usecount", updated_values.usecount );
 									insert_option_sorted_by_usecount( option );
 									row.classList.remove( "unsaved" );
@@ -379,22 +386,8 @@
 								}
 							}
 						);
-						if ( state.includes( "hidden" ) )
-						{
-							hidden_items.appendChild( row );
-						}
-						else if ( state.includes( "strike" ) )
-						{
-							ONE("#strike").appendChild( row );
-						}
-						else
-						{
-							insertInActive( row );
-						}
-						if ( data[ name ].modified > lastModified )
-						{
-							lastModified = data[ name ].modified;
-						}
+						items.get( name ).update( get_data() );
+						changed_items = changed_items.filter( str => str != name );
 					}
 				}
 				ONE("#scrollbox").scrollTop = scroll_position;
@@ -644,6 +637,35 @@
 			
 			fillPage( currentData.get() );
 			sync();
+		}
+		/// new setup
+		
+		function update_page()
+		{
+			fill_page( get_local_stored_items() );
+		}
+		function store_items_local_and_update_page( changed_items )
+		{
+			let local_items = get_local_stored_items();
+			let updated_items = { ...local_items, ...changed_items };
+			if ( different( local_items, updated_items ) )
+			{
+				store_items_local( updated_items );
+				update_page();
+			}
+		}
+		function server_sends_new_items( remote_items )
+		{
+			store_items_local_and_update_page( remote_items );
+		}
+		function user_makes_change( changed_items )
+		{
+			store_items_local_and_update_page( changed_items );
+			update_server( changed_items );
+		}
+		window.onload2 = ()
+		{
+			update_page();
 		}
 		</script>
 	</head>

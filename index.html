@@ -263,14 +263,14 @@
 				return item_cache[ str ] || create_row( str, context );
 			}
 			
-			function updatePageJson( data )
+			function updatePageFromServerString( data )
 			{
-				return updatePage( JSON.parse( data ) );
+				return updatePageFromServerData( JSON.parse( data ) );
 			}
 			
 			function isEmpty( obj )
 			{
-				return Object.keys( obj ).length === 0;
+				return !( obj && Object.keys( obj ).length !== 0 );
 			}
 			
 			function insert_option_sorted_by_usecount( option )
@@ -306,16 +306,22 @@
 						let add_to_state = ( v ) => {
 							if ( !state.includes( v ) ) state.push( v );
 						}
+						let mark_changed = () => {
+							row.classList.add( "unsaved" );
+							changed_items.push( name );
+						}
 						let remove_from_state = ( v ) => {
 							state = state.filter( str => str != v );
 						}
 						let remove_strike = () => {
 							insertInActive( row );
 							remove_from_state( "strike" );
+							mark_changed();
 						}
 						let add_strike = () => {
 							push_front( ONE("#strike"), row );
 							add_to_state( "strike" );
+							mark_changed();
 						}
 						items.set(
 							name,
@@ -325,24 +331,21 @@
 									let data = get_data();
 									if ( row.parentNode.id == "strike" ) remove_strike()
 									else add_strike();
-									row.classList.add( "unsaved" );
-									changed_items.push( name );
 									syncIfNeeded();
 								},
 								hide : () =>
 								{
 									add_to_state( "hidden" );
-									changed_items.push( name );
+									mark_changed();
 								},
 								unhide : () =>
 								{
 									remove_from_state( "hidden" );
-									changed_items.push( name );
+									mark_changed();
 								},
 								remove_strike : () =>
 								{
 									remove_strike();
-									changed_items.push( name );
 								},
 								as_item : () =>
 								{
@@ -370,7 +373,7 @@
 									}
 									else
 									{
-										state = [];
+										state = state.filter( str => str === "created" );
 										if ( !row.parentNode || row.parentNode.id != "active" )
 										{
 											insertInActive( row );
@@ -383,11 +386,16 @@
 									{
 										lastModified = updated_values.modified;
 									}
+									changed_items = changed_items.filter( str => str != name );
 								}
 							}
 						);
 						items.get( name ).update( get_data() );
-						changed_items = changed_items.filter( str => str != name );
+						if ( state.includes( "created" ) )
+						{
+							remove_from_state( "created" );
+							mark_changed();
+						}
 					}
 				}
 				ONE("#scrollbox").scrollTop = scroll_position;
@@ -425,7 +433,7 @@
 				return active + "." + strike + "." + hidden;
 			}
 			
-			function updatePage( data )
+			function updatePageFromServerData( data )
 			{
 				let current_known_data = currentData.get();
 				for_key_value(
@@ -456,7 +464,8 @@
 						item_cache,
 						( k, v ) => changed_items.push( k )
 					);
-					sync();
+					syncIfNeeded();
+					console.log( data.check, checksum( current_known_data ) );
 				}
 			}
 			
@@ -496,7 +505,7 @@
 					post(
 						"sync.php",
 						diff,
-						updatePageJson
+						updatePageFromServerString
 					);
 				}
 			}
@@ -616,14 +625,26 @@
 			{
 				if ( e.keyCode == 13 )
 				{
-					get_or_create_item( input.value.trim() );
-					let item = items.get( input.value.trim() );
+					let name = input.value.trim().toLowerCase();
+					if ( name.length === 0 ) return;
+					input.value = "";
+					let item = items.get( name );
 					if ( item )
 					{
 						item.remove_strike();
 						item.unhide();
 					}
-					input.value = "";
+					else
+					{
+						let data = currentData.get();
+						data[ name ] = {
+							"state": "created",
+							"usecount": 0
+						};
+//						changed_items.push( name );
+						currentData.set( data );
+						fillPage( currentData.get() );
+					}
 					syncIfNeeded();
 				}
 			}
@@ -663,7 +684,7 @@
 			store_items_local_and_update_page( changed_items );
 			update_server( changed_items );
 		}
-		window.onload2 = ()
+		window.onload2 = () =>
 		{
 			update_page();
 		}

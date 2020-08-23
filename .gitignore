@@ -1,0 +1,4 @@
+build/
+items/
+.DS_Store
+log.txt

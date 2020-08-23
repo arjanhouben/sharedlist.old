@@ -1,11 +1,18 @@
 <?php
 
-$error = array();
 $result = array();
 $db = new SQLite3( "items/sqlite.db", SQLITE3_OPEN_READWRITE | SQLITE3_OPEN_CREATE );
 $request = array();
 
 $db->exec( "CREATE TABLE IF NOT EXISTS items ( name varchar(255), modified int, usecount int, state int )" );
+
+function debug( $message )
+{
+	return;
+	ob_start();
+	var_dump($message);
+	file_put_contents( "log.txt", ob_get_clean() . "\n", FILE_APPEND );
+}
 
 if ( $_REQUEST )
 {
@@ -13,6 +20,9 @@ if ( $_REQUEST )
 	{
 		$json = $_REQUEST[ "json" ];
 		$request = json_decode( $json, true );
+
+		debug( $json );
+		debug( $request );
 	}
 }
 
@@ -45,8 +55,6 @@ if ( $request )
 
 		foreach( $request[ "items" ] as $name => &$item )
 		{
-			unset( $result[ $name ] );
-		
 			// get server version of same item
 			$WHERE_CLAUSE = " WHERE name=\"" . $name . "\"";
 			$sql_result = $db->query( "SELECT modified,state,usecount FROM items" . $WHERE_CLAUSE );
@@ -56,7 +64,8 @@ if ( $request )
 			{
 				if ( $current_server_entry[ "state" ] == $item[ "state" ] )
 				{
-					$error[ $name ] = "redundant change, state remains at " . $current_server_entry[ "state" ];
+					$result[ "errors" ][ $name ] = "redundant change, state remains at " . $current_server_entry[ "state" ];
+					$result[ "items" ][ $name ] = $current_server_entry;
 				}
 			
 				if ( array_key_exists( "modified", $current_server_entry ) )
@@ -66,10 +75,10 @@ if ( $request )
 						// bccomp returns 0 if values match
 						if ( bccomp( $current_server_entry[ "modified" ], $item[ "modified" ], 4 ) )
 						{
-							$error[ $name ] = "could not be saved, modified " .
+							$result[ "errors" ][ $name ] = "could not be saved, modified " .
 								$current_server_entry[ "modified" ] .
 								" differs from " . $item[ "modified" ];
-							$error[ "modified" ] = $current_server_entry[ "modified" ];
+							$result[ "errors" ][ "modified" ] = $current_server_entry[ "modified" ];
 							$result[ "items" ][ $name ] = $current_server_entry;
 							continue;
 						}
@@ -91,7 +100,7 @@ if ( $request )
 				else
 				{
 					$result[ "items" ][ $name ] = $current_server_entry;
-					$error[ $name ] = "could not be saved, DB did not accept change: "
+					$result[ "errors" ][ $name ] = "could not be saved, DB did not accept change: "
 						. $db->lastErrorCode()
 						. " -> "
 						. $db->lastErrorMsg();
@@ -102,13 +111,15 @@ if ( $request )
 				if ( $db->exec(
 						"INSERT INTO items ( name, modified, usecount, state ) " .
 						"VALUES ( \"" . $name . "\"," .
-						" \"" . $item[ "modified" ] . "\"," .
-						" \"" . $item[ "usecount" ] . "\"," .
+						" \"" . $currentModificationTime . "\"," .
+						" \"" . 0 . "\"," .
 						" \"" . $item[ "state" ] . "\" )"
 						)
 					)
 				{
 					$result[ "items" ][ $name ] = $item;
+					debug( "insert into db: " . $name );
+					debug( $item );
 				}
 			}
 		}
@@ -124,8 +135,8 @@ $number_strike = $sql_result->fetchArray( SQLITE3_NUM )[ 0 ];
 $sql_result = $db->query( "SELECT COUNT(name) FROM items WHERE state = ''" );
 $number_active = $sql_result->fetchArray( SQLITE3_NUM )[ 0 ];
 
-$result[ "errors" ] = $error;
 $result[ "check" ] = $number_active . "." . $number_strike . "." . $number_hidden;
+debug( $result );
 echo json_encode( $result );
 
 ?>
